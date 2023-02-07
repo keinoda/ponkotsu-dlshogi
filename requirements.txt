@@ -1,2 +1,3 @@
 dlshogi
 cshogi
+scipy
