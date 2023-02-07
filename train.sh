@@ -1,10 +1,7 @@
 last=1
 
 # 変数設定
-name="densenet10"
-model_dir="/mnt/d/densenet/model"
-checkpoint_dir="/mnt/d/densenet"
-data_dir="/mnt/d/ShogiAIBookData"
+log_dir="/mnt/f/densenet/${name}"
 
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${model_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
@@ -42,7 +39,7 @@ for ((i=$start; i<=$last; i++)); do
     #  ${resume} --checkpoint ${checkpoint} -g 0 -b 3000 -e 1
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 1\
-     --eval_interval 100
+    --lr_scheduler MultiStepLR'('milestones=[10,30,50],gamma=0.1')' --log ${log_dir}/train_log.txt
 
     
     if [ $? -ne 0 ]; then
