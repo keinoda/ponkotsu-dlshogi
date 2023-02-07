@@ -17,17 +17,10 @@ class DenseLayer(nn.Module):
         super(DenseLayer, self).__init__()
         self.norm1=nn.BatchNorm2d(channels)
         self.relu1=nn.ReLU(inplace=True)
-        # self.conv1=nn.Conv2d(channels,growth_rate*4,kernel_size=1,bias=False)
-        self.conv1=nn.Conv2d(channels,growth_rate,kernel_size=1,bias=False)
-        # self.norm2=nn.BatchNorm2d(growth_rate*4)
-        self.norm2=nn.BatchNorm2d(growth_rate)
+        self.conv1=nn.Conv2d(channels,growth_rate*4,kernel_size=1,bias=False)
+        self.norm2=nn.BatchNorm2d(growth_rate*4)
         self.relu2=nn.ReLU(inplace=True)
-        # self.conv2=nn.Conv2d(growth_rate*4,growth_rate,kernel_size=3,padding=1,bias=False)
-        self.conv2=nn.Conv2d(growth_rate,growth_rate,kernel_size=3,padding=1,bias=False)
-        # self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
-        # self.bn1 = nn.BatchNorm2d(channels)
-        # self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
-        # self.bn2 = nn.BatchNorm2d(channels)
+        self.conv2=nn.Conv2d(growth_rate*4,growth_rate,kernel_size=3,padding=1,bias=False)
 
     def forward(self, x):
         out=torch.cat(x,1)
@@ -38,14 +31,6 @@ class DenseLayer(nn.Module):
         out=self.norm2(out)
         out=self.relu2(out)
         out=self.conv2(out)
-        # out = self.conv1(x)
-        # out = self.bn1(out)
-        # out = F.relu(out)
-
-        # out = self.conv2(out)
-        # out = self.bn2(out)
-
-        # return F.relu(out)
         return out
     
 class DenseBlock(nn.ModuleDict):
