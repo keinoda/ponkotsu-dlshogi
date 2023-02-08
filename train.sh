@@ -8,7 +8,7 @@ log_dir="/mnt/d/densenet/${name}"
 data_dir="/mnt/d/ShogiAIBookData"
 
 # 最新のチェックポイント+1から学習を再開する
-for i in $(ls -v ${model_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
+for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
     done
 
 if [ -v chkp ];then
