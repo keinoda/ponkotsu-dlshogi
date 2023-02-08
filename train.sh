@@ -1,7 +1,7 @@
-last=1
+last=144
 
 # 変数設定
-name="densenet10_g32_c192"
+name="densenet10_g32_c192_add_options"
 checkpoint_dir="/mnt/d/densenet/${name}"
 model_dir="/mnt/d/densenet/${name}/model"
 log_dir="/mnt/d/densenet/${name}"
@@ -12,7 +12,7 @@ for i in $(ls -v ${model_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$
     done
 
 if [ -v chkp ];then
-    start=$(expr ${chlp: -7:3} + 1)
+    start=$(expr ${chkp: -7:3} + 1)
 else
     start=1
 fi
