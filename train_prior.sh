@@ -3,9 +3,9 @@ last=106
 # 変数設定
 save_dir=$1
 name="densenet10_g32_c192_add_options_kernel3"
-checkpoint_dir="${save_dir}/${name}"
-model_dir="${save_dir}/${name}/model"
-log_dir="${save_dir}/${name}"
+checkpoint_dir="${save_dir}_prior/${name}"
+model_dir="${save_dir}_prior/${name}/model"
+log_dir="${save_dir}_prior/${name}"
 data_dir=$2
 
 # 最新のチェックポイント+1から学習を再開する
@@ -39,7 +39,7 @@ for ((i=$start; i<=$last; i++)); do
     model="${model_dir}/model_${name}-{epoch:03}.pth"
 
     # チェックポイントのファイル名
-    checkpoint="${checkpoint_dir}/checkpoint_${name}-{epoch:03}.pth"
+    checkpoint="${checkpoint_dir}/checkpoint_${name}_prior-{epoch:03}.pth"
 
     echo epoch ${i} start
 
