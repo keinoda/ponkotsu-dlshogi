@@ -17,7 +17,7 @@ class DenseLayer(nn.Module):
         super(DenseLayer, self).__init__()
         self.norm1=nn.BatchNorm2d(channels)
         self.relu1=nn.ReLU(inplace=True)
-        self.conv1=nn.Conv2d(channels,growth_rate*4,kernel_size=3,padding=1,bias=False)
+        self.conv1=nn.Conv2d(channels,growth_rate*4,kernel_size=1,bias=False)
         self.norm2=nn.BatchNorm2d(growth_rate*4)
         self.relu2=nn.ReLU(inplace=True)
         self.conv2=nn.Conv2d(growth_rate*4,growth_rate,kernel_size=3,padding=1,bias=False)
