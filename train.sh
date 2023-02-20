@@ -1,11 +1,12 @@
 last=144
 
 # 変数設定
-name="densenet10_g32_c192_add_options"
-checkpoint_dir="/mnt/d/densenet/${name}"
-model_dir="/mnt/d/densenet/${name}/model"
-log_dir="/mnt/d/densenet/${name}"
-data_dir="/mnt/d/ShogiAIBookData"
+save_dir=$1
+name="densenet10_g32_c192_add_options_kernel3"
+checkpoint_dir="${save_dir}/${name}"
+model_dir="${save_dir}/${name}/model"
+log_dir="${save_dir}/${name}"
+data_dir=$2
 
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
