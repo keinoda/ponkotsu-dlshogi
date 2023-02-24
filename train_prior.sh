@@ -19,7 +19,7 @@ else
 fi
 
 for ((i=$start; i<=$last; i++)); do
-    iii=$(printf "%03d" $i)
+    iii=$(printf "%03d" $((i-1) % 53 + 1)))
     jjj=$(printf "%03d" $(((i-1) % 53 + 300)))
     kkk=$(printf "%07d" $(((i-1) % 53 +115)))
     rrr=$(printf "%03d" $((i-1)))
