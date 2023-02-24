@@ -20,8 +20,8 @@ fi
 
 for ((i=$start; i<=$last; i++)); do
     iii=$(printf "%03d" $i)
-    jjj=$(printf "%03d" $((i % 53 + 299)))
-    kkk=$(printf "%07d" $((i % 53 +114)))
+    jjj=$(printf "%03d" $(((i-1) % 53 + 300)))
+    kkk=$(printf "%07d" $(((i-1) % 53 +115)))
     src="${data_dir}/hcpe/elmo_teacher_shuffle-${iii} ${data_dir}/hcpe/selfplay-${jjj} ${data_dir}/hcpe/aobazero_teacher-arch${kkk}"
     if [ $((i % 53)) -eq 0 ];then
         src="${src} ${data_dir}/suisho/hcpe/nyugyoku"
