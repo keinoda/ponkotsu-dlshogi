@@ -1,8 +1,8 @@
-last=144
+last=106
 
 # 変数設定
 save_dir=$1
-name="densenet10_g32_c192_add_options_kernel3"
+name="densenet10_g32_c192_add_options_kernel3_prior"
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
@@ -19,16 +19,21 @@ else
 fi
 
 for ((i=$start; i<=$last; i++)); do
-    iii=$(printf "%03d" $i)
-    jjj=$(printf "%03d" $((i-1)))
-    kkk=$(printf "%03d" $(((i-1) % 24 +1)))
-    src="${data_dir}/floodgate_2019-2021_r3500-${kkk}.hcpe ${data_dir}/suisho3kai-${kkk}.hcpe ${data_dir}/dlshogi_with_gct-${kkk}.hcpe"
+    iii=$(printf "%03d" $(((i-1) % 53 + 1)))
+    jjj=$(printf "%03d" $(((i-1) % 53 + 300)))
+    kkk=$(printf "%07d" $(((i-1) % 53 +115)))
+    rrr=$(printf "%03d" $((i-1)))
+    src="${data_dir}/hcpe/elmo_teacher_shuffle-${iii} ${data_dir}/hcpe/selfplay-${jjj} ${data_dir}/hcpe/aobazero_teacher-arch${kkk}"
+    if [ $((i % 53)) -eq 0 ];then
+        src="${src} ${data_dir}/suisho/hcpe/nyugyoku"
+    fi
+    echo ${src}
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 1 ]; then
         resume=""
     else
-        resume="-r ${checkpoint_dir}/checkpoint_${name}-${jjj}.pth"
+        resume="-r ${checkpoint_dir}/checkpoint_${name}-${rrr}.pth"
     fi
 
     # モデルのファイル名
