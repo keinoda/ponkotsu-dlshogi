@@ -42,7 +42,7 @@ for ((i=$start; i<=$last; i++)); do
     # チェックポイントのファイル名
     checkpoint="${checkpoint_dir}/checkpoint_${name}-{epoch:03}.pth"
 
-    echo epoch $((3*i-503))-$((3*i-501)) start
+    echo epoch $((3*i-502))-$((3*i-500)) start
 
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
