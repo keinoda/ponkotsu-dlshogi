@@ -19,13 +19,13 @@ else
 fi
 
 for ((i=$start; i<=$last; i++)); do
-    iii=$(printf "%03d" $(((i-251)*3+1)))
-    jjj=$(printf "%03d" $(((i-251)*3+2)))
-    kkk=$(printf "%03d" $(((i-251)*3+3)))
-    rrr=$(printf "%03d" $((3*i-503)))
+    iii=$(printf "%03d" $(((i-251)/3*3+1)))
+    jjj=$(printf "%03d" $(((i-251)/3*3+2)))
+    kkk=$(printf "%03d" $(((i-251)/3*3+3)))
+    rrr=$(printf "%03d" $((i-1)))
     src="${data_dir}/selfplay_gct-${iii}.hcpe3 ${data_dir}/selfplay_gct-${jjj}.hcpe3 ${data_dir}/selfplay_gct-${kkk}.hcpe3"
 
-    if [ $i -eq $last ];then
+    if [ $i -ge $((last-2)) ];then
         src="${src} ${data_dir}/nyugyoku"
     fi
 
@@ -42,11 +42,11 @@ for ((i=$start; i<=$last; i++)); do
     # チェックポイントのファイル名
     checkpoint="${checkpoint_dir}/checkpoint_${name}-{epoch:03}.pth"
 
-    echo epoch $((3*i-502))-$((3*i-500)) start
+    echo epoch $i start
 
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-     ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 3\
+     ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 1\
     --use_average --use_evalfix --use_swa --use_amp --temperature 1 --reset_scheduler --lr 0.0002\
     --lr_scheduler MultiStepLR'('milestones=[260,280],gamma=0.1')' --log ${log_dir}/train_log.txt
 
