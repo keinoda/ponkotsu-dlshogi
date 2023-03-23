@@ -55,12 +55,12 @@ class TransitionLayer(nn.Sequential):
         self.add_module("conv",nn.Conv2d(in_channels,out_channels,kernel_size=1,bias=False))
 
 class PolicyValueNetwork(nn.Module):
-    def __init__(self, growth_rate=32, blocks=(10,), fcl=256):
+    def __init__(self, growth_rate=32, blocks=(10,), channels=32, fcl=256):
         super(PolicyValueNetwork, self).__init__()
-        self.conv1_1_1 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=growth_rate, kernel_size=3, padding=1, bias=False)
-        self.conv1_1_2 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=growth_rate, kernel_size=1, padding=0, bias=False)
-        self.conv1_2 = nn.Conv2d(in_channels=FEATURES2_NUM, out_channels=growth_rate, kernel_size=1, bias=False)
-        channels=growth_rate*3+FEATURES1_NUM+FEATURES2_NUM
+        self.conv1_1_1 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=3, padding=1, bias=False)
+        self.conv1_1_2 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=1, padding=0, bias=False)
+        self.conv1_2 = nn.Conv2d(in_channels=FEATURES2_NUM, out_channels=channels, kernel_size=1, bias=False)
+        channels=channels*3+FEATURES1_NUM+FEATURES2_NUM
         self.norm1 = nn.BatchNorm2d(channels)
 
         # Dense Block及びTransition Layerを作成
