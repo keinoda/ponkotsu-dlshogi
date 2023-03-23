@@ -90,7 +90,7 @@ class PolicyValueNetwork(nn.Module):
         x = [x1, x2]
         x = torch.cat(x,1)
 
-        # Dense blocks
+        # dense blocks
         x = self.blocks(x)
 
         # policy head
