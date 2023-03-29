@@ -55,9 +55,10 @@ class TransitionLayer(nn.Sequential):
         self.add_module("conv",nn.Conv2d(in_channels,out_channels,kernel_size=1,bias=False))
 
 class PolicyValueNetwork(nn.Module):
-    def __init__(self, growth_rate=32, blocks=(11,), channels=192, fcl=256):
+    def __init__(self, growth_rate=32, blocks=(11,), fcl=256):
         super(PolicyValueNetwork, self).__init__()
 
+        channels=FEATURES1_NUM+FEATURES2_NUM
         # Dense Block及びTransition Layerを作成
         self.blocks=nn.Sequential()
         for i,num_layers in enumerate(blocks):
