@@ -96,7 +96,7 @@ class PolicyValueNetwork(nn.Module):
         x_2 = self.conv1_2(x2)
         x = F.relu(self.norm1(x_1_1 + x_1_2 + x_2))
 
-        # resnet blocks
+        # dense blocks
         x = self.blocks(x)
 
         # policy head
