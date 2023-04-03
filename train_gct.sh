@@ -19,14 +19,17 @@ else
 fi
 
 for ((i=$start; i<=$last; i++)); do
-    iii=$(printf "%03d" $(((i-251)/3*3+1)))
-    jjj=$(printf "%03d" $(((i-251)/3*3+2)))
+    iii=$(printf "%03d" $(((i-251)/3*2+1)))
+    jjj=$(printf "%03d" $(((i-251)/3*2+2)))
     kkk=$(printf "%03d" $(((i-251)/3*3+3)))
     rrr=$(printf "%03d" $((i-1)))
-    src="${data_dir}/selfplay_gct-${iii}.hcpe3 ${data_dir}/selfplay_gct-${jjj}.hcpe3 ${data_dir}/selfplay_gct-${kkk}.hcpe3"
+    # src="${data_dir}/selfplay_gct-${iii}.hcpe3 ${data_dir}/selfplay_gct-${jjj}.hcpe3 ${data_dir}/selfplay_gct-${kkk}.hcpe3"
+    src="${data_dir}/selfplay_gct-${iii}.hcpe3"
 
     if [ $i -ge $((last-2)) ];then
         src="${src} ${data_dir}/nyugyoku"
+    else
+        src="${src} ${data_dir}/selfplay_gct-${jjj}.hcpe3"
     fi
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
