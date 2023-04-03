@@ -2,7 +2,7 @@ last=144
 
 # 変数設定
 save_dir=$1
-name="densenet10_g32_cat_input_dlshogi"
+name="densenet10_g32_cat_input_dlshogi_c192"
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
