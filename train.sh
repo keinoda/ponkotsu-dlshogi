@@ -42,7 +42,7 @@ for ((i=$start; i<=$last; i++)); do
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 1\
-     --lr 1 --optimizer Adadelta --use_average --use_evalfix --use_swa --use_amp --temperature 0 #--log ${log_dir}/train_log.txt
+     --lr 1 --optimizer Adadelta --use_average --use_evalfix --use_swa --use_amp --temperature 0 --log ${log_dir}/train_log.txt
 
     
     if [ $? -ne 0 ]; then
