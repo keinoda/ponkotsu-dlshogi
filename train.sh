@@ -42,7 +42,7 @@ for ((i=$start; i<=$last; i++)); do
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe \
     ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 1 \
-    --use_average --use_evalfix --use_swa --use_amp --temperature 0 --lr 0.2 --optimizer Adam --log ${log_dir}/train_log.txt \
+    --use_average --use_evalfix --use_swa --use_amp --temperature 0 --lr 0.02 --optimizer Adam --log ${log_dir}/train_log.txt \
     --lr_scheduler MultiStepLR'('milestones=[10,30,50],gamma=0.1')' #--log ${log_dir}/train_log.txt
 
     
