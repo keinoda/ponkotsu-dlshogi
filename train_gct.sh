@@ -1,4 +1,4 @@
-last=275
+last=364
 
 # 変数設定
 save_dir=$1
@@ -32,9 +32,23 @@ for ((i=$start; i<=$last; i++)); do
         src="${src} ${data_dir}/selfplay_gct-${jjj}.hcpe3"
     fi
 
+    # lr="--lr 0.0002 --lr_scheduler MultiStepLR(milestones=[10,30],gamma=0.1)"
+
+    # 応急処置で一旦
+    # lr="--lr 0.0002 --lr_scheduler MultiStepLR(milestones=[0,20],gamma=0.1)"
+    if [ $i -ge 280 ]; then
+        lr="--lr 0.000002 --reset_scheduler"
+    else
+        lr="--lr 0.00002 --reset_scheduler"
+    fi
+    # if [ $i -eq 261 ]; then
+    #     lr="${lr} --reset_scheduler"
+    # fi
+
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 251 ]; then
         resume="-r ${checkpoint_dir}/checkpoint_densenet10_g32_c192_add_options_kernel3_adding_no-reset-250.pth"
+        lr="${lr} --reset_scheduler"
     else
         resume="-r ${checkpoint_dir}/checkpoint_${name}-${rrr}.pth"
     fi
@@ -50,8 +64,7 @@ for ((i=$start; i<=$last; i++)); do
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 1\
-    --use_average --use_evalfix --use_swa --use_amp --temperature 1 --reset_scheduler --lr 0.0002\
-    --lr_scheduler MultiStepLR'('milestones=[260,280],gamma=0.1')' --log ${log_dir}/train_log.txt
+    --use_average --use_evalfix --use_swa --use_amp --temperature 1 ${lr} --log ${log_dir}/train_log.txt
 
     
     if [ $? -ne 0 ]; then
