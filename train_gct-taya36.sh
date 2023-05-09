@@ -1,4 +1,4 @@
-last=374
+last=380
 
 # 変数設定
 save_dir=$1
@@ -19,15 +19,20 @@ else
 fi
 
 for ((i=$start; i<=$last; i++)); do
-    iii=$(printf "%03d" $(((i-371)/2*2+2)))
-    jjj=$(printf "%03d" $(((i-251)/3*2+2)))
-    kkk=$(printf "%03d" $(((i-251)/3*3+3)))
+    iii=$(((i-375)/2))
     rrr=$(printf "%03d" $((i-1)))
-    src="${data_dir}/selfplay_model-0000221-${iii}.hcpe3 ${data_dir}/selfplay_model-0000224-${iii}.hcpe3"
+
+    if [ $iii -eq 0 ];then
+        src="${data_dir}/selfplay_model-0000221_taya36.hcpe3"
+    elif [ $iii -eq 1 ];then
+        src="${data_dir}/selfplay_model-0000224_taya36.hcpe3"
+    else
+        src="${data_dir}/selfplay_gct070_taya36.hcpe3"
+    fi
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
-    if [ $i -eq 1 ]; then
-        resume=""
+    if [ $i -eq 375 ]; then
+        resume="-r /home/vmlab/jj1guj/densenet10_g32_c192_add_options_kernel3_adding_gct_model/checkpoint_densenet10_g32_c192_add_options_kernel3_adding_gct_model-374.pth"
     else
         resume="-r ${checkpoint_dir}/checkpoint_${name}-${rrr}.pth"
     fi
