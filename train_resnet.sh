@@ -1,8 +1,8 @@
-last=144
+last=288
 
 # 変数設定
 save_dir=$1
-name="resnet10x128"
+name="resnet10x154"
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
@@ -41,8 +41,9 @@ for ((i=$start; i<=$last; i++)); do
 
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-     ${resume} --checkpoint ${checkpoint} --network resnet10x128 --model ${model} -e 1\
-    --use_average --val_lambda 0  --temperature 0 --log ${log_dir}/train_log.txt
+     ${resume} --checkpoint ${checkpoint} --network resnet10x154 --model ${model} -e 1\
+    --use_average --use_evalfix --use_swa --use_amp --temperature 0 --lr 0.2\
+    --lr_scheduler ReduceLROnPlateau --log ${log_dir}/train_log.txt
 
     
     if [ $? -ne 0 ]; then
