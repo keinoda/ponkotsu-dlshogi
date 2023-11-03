@@ -16,39 +16,39 @@ class DenseLayer(nn.Module):
     def __init__(self, channels, growth_rate):
         super(DenseLayer, self).__init__()
         
-        # 3x3の畳み込みカーネル及び5x5の畳み込みカーネルのチャンネル数を計算する
+        # 3x3の畳み込みカーネル及び7x7の畳み込みカーネルのチャンネル数を計算する
         self.in_channels = channels
-        self.in_kernel3 = int(0.8 * channels)
-        self.in_kernel5 = self.in_channels - self.in_kernel3
-        self.growth_rate_kernel3 = int(0.8 * growth_rate)
-        self.growth_rate_kernel5 = growth_rate - self.growth_rate_kernel3
+        self.in_kernel3 = int(0.9 * channels)
+        self.in_kernel7 = self.in_channels - self.in_kernel3
+        self.growth_rate_kernel3 = int(0.9 * growth_rate)
+        self.growth_rate_kernel7 = growth_rate - self.growth_rate_kernel3
         self.growth_rate4x = 4 * growth_rate
         self.growth_rate4x_kernel3 = 4 * self.growth_rate_kernel3
-        self.growth_rate4x_kernel5 = self.growth_rate4x - self.growth_rate4x_kernel3
+        self.growth_rate4x_kernel7 = self.growth_rate4x - self.growth_rate4x_kernel3
 
         # 畳み込みカーネルの作成
         self.norm1=nn.BatchNorm2d(channels)
         self.relu1=nn.ReLU(inplace=True)
         self.conv1_3x3=nn.Conv2d(self.in_kernel3, self.growth_rate4x_kernel3, kernel_size=3, padding=1, bias=False)
-        self.conv1_5x5=nn.Conv2d(self.in_kernel5, self.growth_rate4x_kernel5, kernel_size=5, padding=2, bias=False)
+        self.conv1_7x7=nn.Conv2d(self.in_kernel7, self.growth_rate4x_kernel7, kernel_size=7, padding=3, bias=False)
         self.norm2=nn.BatchNorm2d(growth_rate*4)
         self.relu2=nn.ReLU(inplace=True)
         self.conv2_3x3=nn.Conv2d(self.growth_rate4x_kernel3, self.growth_rate_kernel3, kernel_size=3, padding=1, bias=False)
-        self.conv2_5x5=nn.Conv2d(self.growth_rate4x_kernel5, self.growth_rate_kernel5, kernel_size=5, padding=2, bias=False)
+        self.conv2_7x7=nn.Conv2d(self.growth_rate4x_kernel7, self.growth_rate_kernel7, kernel_size=7, padding=3, bias=False)
 
     def forward(self, x):
         out=torch.cat(x,1)
         out=self.norm1(out)
         out=self.relu1(out)
         out_3x3=self.conv1_3x3(out[:, :self.in_kernel3])
-        out_5x5=self.conv1_5x5(out[:, self.in_kernel3:self.in_channels])
-        out=torch.cat([out_3x3, out_5x5], 1)
+        out_7x7=self.conv1_7x7(out[:, self.in_kernel3:self.in_channels])
+        out=torch.cat([out_3x3, out_7x7], 1)
         
         out=self.norm2(out)
         out=self.relu2(out)
         out_3x3=self.conv2_3x3(out[:, :self.growth_rate4x_kernel3])
-        out_5x5=self.conv2_5x5(out[:, self.growth_rate4x_kernel3:self.growth_rate4x])
-        out=torch.cat([out_3x3, out_5x5], 1)
+        out_7x7=self.conv2_7x7(out[:, self.growth_rate4x_kernel3:self.growth_rate4x])
+        out=torch.cat([out_3x3, out_7x7], 1)
         return out
     
 class DenseBlock(nn.ModuleDict):
@@ -77,7 +77,7 @@ class PolicyValueNetwork(nn.Module):
         super(PolicyValueNetwork, self).__init__()
         self.conv1_1_1 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=1, padding=0, bias=False)
         self.conv1_1_2 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=3, padding=1, bias=False)
-        self.conv1_1_3 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=5, padding=2, bias=False)
+        self.conv1_1_3 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=7, padding=3, bias=False)
         self.conv1_2 = nn.Conv2d(in_channels=FEATURES2_NUM, out_channels=channels, kernel_size=1, bias=False)
         self.norm1 = nn.BatchNorm2d(channels)
 
