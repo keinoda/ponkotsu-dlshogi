@@ -52,7 +52,7 @@ class TransitionLayer(nn.Sequential):
         super().__init__()
         self.add_module("norm",nn.BatchNorm2d(in_channels))
         self.add_module("relu",nn.ReLU(inplace=True))
-        self.add_module("conv",nn.Conv2d(in_channels,out_channels,kernel_size=1,bias=False))
+        self.add_module("conv",nn.Conv2d(in_channels,out_channels,kernel_size=3,padding=1,bias=False))
 
 class PolicyValueNetwork(nn.Module):
     def __init__(self, growth_rate=32, blocks=(5,5), channels=192, fcl=256):
@@ -78,7 +78,7 @@ class PolicyValueNetwork(nn.Module):
                 # 最後のDense Blockでない場合はTransition Layerを追加
                 trans=TransitionLayer(in_channels=channels,out_channels=self.channels)
                 self.blocks.add_module(f"transition{i+1}",trans)
-                channels//=2
+                channels = self.channels
         
 
         # policy head
