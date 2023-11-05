@@ -1,8 +1,8 @@
-last=144
+last=24
 
 # 変数設定
 save_dir=$1
-name="densenet10"
+name="densenet5_5"
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
