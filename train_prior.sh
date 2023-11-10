@@ -2,7 +2,7 @@ last=106
 
 # 変数設定
 save_dir=$1
-name="densenet10_g32_c192_add_options_kernel3_prior"
+name="resnet50x192"
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
@@ -46,9 +46,9 @@ for ((i=$start; i<=$last; i++)); do
 
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-     ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 1\
+     ${resume} --checkpoint ${checkpoint} --network resnet50x192 --model ${model} -e 1\
     --use_average --use_evalfix --use_swa --use_amp --temperature 0 --lr 0.2\
-    --lr_scheduler MultiStepLR'('milestones=[10,30,50],gamma=0.1')' --log ${log_dir}/train_log.txt
+    --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --log ${log_dir}/train_log.txt
 
     
     if [ $? -ne 0 ]; then
