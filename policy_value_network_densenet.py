@@ -13,17 +13,18 @@ class Bias(nn.Module):
         return input + self.bias
 
 class DenseLayer(nn.Module):
-    def __init__(self, channels, growth_rate):
+    def __init__(self, channels):
         super(DenseLayer, self).__init__()
         self.norm1=nn.BatchNorm2d(channels)
         self.relu1=nn.ReLU(inplace=True)
-        self.conv1=nn.Conv2d(channels,growth_rate*4,kernel_size=3,padding=1,bias=False)
-        self.norm2=nn.BatchNorm2d(growth_rate*4)
+        self.conv1=nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False)
+        self.norm2=nn.BatchNorm2d(channels)
         self.relu2=nn.ReLU(inplace=True)
-        self.conv2=nn.Conv2d(growth_rate*4,growth_rate,kernel_size=3,padding=1,bias=False)
+        self.conv2=nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False)
 
     def forward(self, x):
-        out=torch.cat(x,1)
+        out=torch.stack(x)
+        out=torch.mean(out,dim=0)
         out=self.norm1(out)
         out=self.relu1(out)
         out=self.conv1(out)
@@ -34,18 +35,19 @@ class DenseLayer(nn.Module):
         return out
     
 class DenseBlock(nn.ModuleDict):
-    def __init__(self,num_layers,channels,growth_rate):
+    def __init__(self,num_layers,channels):
         super(DenseBlock, self).__init__()
         for i in range(num_layers):
-            layer=DenseLayer(channels=channels+i*growth_rate,
-                             growth_rate=growth_rate)
+            layer=DenseLayer(channels=channels)
             self.add_module(f"denselayer{i+1}",layer)
     def forward(self,x0):
+        # 直前の層までの平均を求める
         x=[x0]
         for name,layer in self.items():
             out=layer(x)
             x.append(out)
-        return torch.cat(x,1)
+        x=torch.stack(x)
+        return torch.mean(x,dim=0)
 
 class TransitionLayer(nn.Sequential):
     def __init__(self,in_channels,out_channels):
@@ -55,7 +57,7 @@ class TransitionLayer(nn.Sequential):
         self.add_module("conv",nn.Conv2d(in_channels,out_channels,kernel_size=1,bias=False))
 
 class PolicyValueNetwork(nn.Module):
-    def __init__(self, growth_rate=32, blocks=(10,), channels=192, fcl=256):
+    def __init__(self, blocks=(10,), channels=192, fcl=256):
         super(PolicyValueNetwork, self).__init__()
         self.conv1_1_1 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=3, padding=1, bias=False)
         self.conv1_1_2 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=1, padding=0, bias=False)
@@ -67,17 +69,9 @@ class PolicyValueNetwork(nn.Module):
         for i,num_layers in enumerate(blocks):
             block=DenseBlock(
                 num_layers=num_layers,
-                channels=channels,
-                growth_rate=growth_rate
+                channels=channels
             )
             self.blocks.add_module(f"denseblock{i+1}",block)
-
-            channels=channels+num_layers*growth_rate
-            if i!=len(blocks)-1:
-                # 最後のDense Block出ない場合はTransition Layerを追加
-                trans=TransitionLayer(in_channels=channels,out_channels=channels//2)
-                self.blocks.add_module(f"transition{i+1}",trans)
-                channels//=2
         
 
         # policy head
