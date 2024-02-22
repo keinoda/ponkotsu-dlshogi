@@ -48,6 +48,25 @@ class DenseBlock(nn.ModuleDict):
             x.append(out)
         x=torch.stack(x)
         return torch.mean(x,dim=0)
+    
+class ResNetBlock(nn.Module):
+    def __init__(self, channels, activation):
+        super(ResNetBlock, self).__init__()
+        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(channels)
+        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(channels)
+        self.act = activation
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.act(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        return self.act(out + x)
 
 class TransitionLayer(nn.Sequential):
     def __init__(self,in_channels,out_channels):
@@ -57,21 +76,24 @@ class TransitionLayer(nn.Sequential):
         self.add_module("conv",nn.Conv2d(in_channels,out_channels,kernel_size=1,bias=False))
 
 class PolicyValueNetwork(nn.Module):
-    def __init__(self, blocks=(10,), channels=192, fcl=256):
+    def __init__(self, blocks=(3,), channels=154, fcl=256):
         super(PolicyValueNetwork, self).__init__()
         self.conv1_1_1 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=3, padding=1, bias=False)
         self.conv1_1_2 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=1, padding=0, bias=False)
         self.conv1_2 = nn.Conv2d(in_channels=FEATURES2_NUM, out_channels=channels, kernel_size=1, bias=False)
         self.norm1 = nn.BatchNorm2d(channels)
 
+        # ResNetを作成
+        self.blocks_resnet = nn.Sequential(*[ResNetBlock(channels, nn.ReLU()) for _ in range(7)])
+
         # Dense Block及びTransition Layerを作成
-        self.blocks=nn.Sequential()
+        self.blocks_densenet=nn.Sequential()
         for i,num_layers in enumerate(blocks):
             block=DenseBlock(
                 num_layers=num_layers,
                 channels=channels
             )
-            self.blocks.add_module(f"denseblock{i+1}",block)
+            self.blocks_densenet.add_module(f"denseblock{i+1}",block)
         
 
         # policy head
@@ -90,8 +112,11 @@ class PolicyValueNetwork(nn.Module):
         x_2 = self.conv1_2(x2)
         x = F.relu(self.norm1(x_1_1 + x_1_2 + x_2))
 
+        # resnet blocks
+        x = self.blocks_resnet(x)
+
         # dense blocks
-        x = self.blocks(x)
+        x = self.blocks_densenet(x)
 
         # policy head
         policy = self.policy_conv(x)
