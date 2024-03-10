@@ -85,7 +85,7 @@ class TransitionLayer(nn.Sequential):
 
 
 class PolicyValueNetwork(nn.Module):
-    def __init__(self, growth_rate=32, blocks=(10,), channels=192, fcl=256):
+    def __init__(self, growth_rate=32, blocks=(5, 5), channels=192, fcl=256):
         super(PolicyValueNetwork, self).__init__()
         self.conv1_1_1 = nn.Conv2d(
             in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=1, padding=0, bias=False)
