@@ -1,8 +1,8 @@
-last=250
+last=144
 
 # 変数設定
 save_dir=$1
-name="densenet20_add_all"
+name="densenet15_add_all_asam"
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
@@ -22,7 +22,11 @@ for ((i=$start; i<=$last; i++)); do
     iii=$(printf "%03d" $i)
     jjj=$(printf "%03d" $((i-1)))
     kkk=$(printf "%03d" $(((i-1) % 24 +1)))
-    src="${data_dir}/floodgate_2019-2021_r3500-${kkk}.hcpe ${data_dir}/suisho3kai-${kkk}.hcpe ${data_dir}/dlshogi_with_gct-${kkk}.hcpe"
+    src="${data_dir}/floodgate_2019-20240314-${kkk} ${data_dir}/Suisho10Mn-${kkk} ${data_dir}/dlshogi_with_gct-${kkk}.hcpe"
+
+    if [ $((i % 6)) -eq 0 ];then
+        src="${src} ${data_dir}/nyugyoku"
+    fi
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 1 ]; then
