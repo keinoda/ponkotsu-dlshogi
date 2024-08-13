@@ -7,6 +7,7 @@ checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
 data_dir=$2
+test_dir=$3
 
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
@@ -45,7 +46,7 @@ for ((i=$start; i<=$last; i++)); do
     echo epoch ${i} start
 
     # 学習
-    python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
+    python -m dlshogi.train ${src} ${test_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network policy_value_network_densenet.PolicyValueNetwork --model ${model} -e 1\
     --use_average --use_evalfix --use_amp --temperature 0 --lr 0.2\
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --log ${log_dir}/train_log.txt
