@@ -23,8 +23,6 @@ class DenseLayer(nn.Module):
         self.conv2=nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False)
 
     def forward(self, x):
-        out=torch.stack(x)
-        out=torch.mean(out,dim=0)
         out=self.norm1(out)
         out=self.relu1(out)
         out=self.conv1(out)
@@ -41,13 +39,13 @@ class DenseBlock(nn.ModuleDict):
             layer=DenseLayer(channels=channels)
             self.add_module(f"denselayer{i+1}",layer)
     def forward(self,x0):
-        # 直前の層までの平均を求める
-        x=[x0]
-        for name,layer in self.items():
-            out=layer(x)
-            x.append(out)
-        x=torch.stack(x)
-        return torch.mean(x,dim=0)
+        # x: 直前の層までの特徴量の総和
+        x = x0
+        for i, (name,layer) in enumerate(self.items()):
+            # 平均を求めてDenseLayerに入力する
+            out=layer(x / (i + 1))
+            x += out
+        return x / (i + 1)
 
 class TransitionLayer(nn.Sequential):
     def __init__(self,in_channels,out_channels):
