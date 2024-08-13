@@ -44,7 +44,7 @@ class DenseBlock(nn.ModuleDict):
         for i, (name,layer) in enumerate(self.items()):
             # 平均を求めてDenseLayerに入力する
             out=layer(x / (i + 1))
-            x += out
+            x = x + out
         return x / (i + 1)
 
 class TransitionLayer(nn.Sequential):
