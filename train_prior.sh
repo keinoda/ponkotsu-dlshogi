@@ -20,15 +20,11 @@ else
 fi
 
 for ((i=$start; i<=$last; i++)); do
-    iii=$(printf "%03d" $(((i-1) % 53 + 1)))
+    iii=$(printf "%03d" $(((i-1) % 63 + 1)))
     jjj=$(printf "%03d" $(((i-1) % 53 + 300)))
     kkk=$(printf "%07d" $(((i-1) % 53 +115)))
     rrr=$(printf "%03d" $((i-1)))
-    src="${data_dir}/hcpe/elmo_teacher_shuffle-${iii} ${data_dir}/hcpe/selfplay-${jjj} ${data_dir}/hcpe/aobazero_teacher-arch${kkk}"
-    if [ $((i % 53)) -eq 0 ];then
-        src="${src} ${data_dir}/suisho/hcpe/nyugyoku"
-    fi
-    echo ${src}
+    src="${data_dir}/aoba_p1600_ply30-${iii} ${data_dir}/shogi_hao_depth9_ply30-${iii} ${data_dir}/shogi_suisho5_depth9_entering_king_ply30-${iii}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 1 ]; then
