@@ -23,7 +23,7 @@ class DenseLayer(nn.Module):
         self.conv2=nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False)
 
     def forward(self, x):
-        out=self.norm1(out)
+        out=self.norm1(x)
         out=self.relu1(out)
         out=self.conv1(out)
         
