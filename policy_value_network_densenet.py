@@ -38,12 +38,11 @@ class DenseBlock(nn.ModuleDict):
         for i in range(num_layers):
             layer=DenseLayer(channels=channels)
             self.add_module(f"denselayer{i+1}",layer)
-    def forward(self,x0):
+    def forward(self,x):
         # x: 直前の層までの特徴量の総和
-        x = x0
         for i, (name,layer) in enumerate(self.items()):
             # 平均を求めてDenseLayerに入力する
-            out=layer(x / (i + 1))
+            out = layer(x / (i + 1))
             x = x + out
         return x / (i + 1)
 
