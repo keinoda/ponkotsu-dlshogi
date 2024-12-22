@@ -14,7 +14,7 @@ class Bias(nn.Module):
 
 class ResNetBlock(nn.Module):
     def __init__(self, channels):
-        super(DenseLayer, self).__init__()
+        super(ResNetBlock, self).__init__()
         self.norm1=nn.BatchNorm2d(channels)
         self.relu1=nn.ReLU(inplace=True)
         self.conv1=nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False)
@@ -23,8 +23,8 @@ class ResNetBlock(nn.Module):
         self.conv2=nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False)
 
     def forward(self, x):
-        out=self.conv1(out)
-        out=self.norm1(x)
+        out=self.conv1(x)
+        out=self.norm1(out)
         out=self.relu1(out)
         
         out=self.conv2(out)
