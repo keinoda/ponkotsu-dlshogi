@@ -12,7 +12,7 @@ class Bias(nn.Module):
     def forward(self, input):
         return input + self.bias
 
-class DenseLayer(nn.Module):
+class ResNetBlock(nn.Module):
     def __init__(self, channels):
         super(DenseLayer, self).__init__()
         self.norm1=nn.BatchNorm2d(channels)
@@ -23,52 +23,24 @@ class DenseLayer(nn.Module):
         self.conv2=nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False)
 
     def forward(self, x):
+        out=self.conv1(out)
         out=self.norm1(x)
         out=self.relu1(out)
-        out=self.conv1(out)
         
-        out=self.norm2(out)
-        out=self.relu2(out)
         out=self.conv2(out)
-        return out
-    
-class DenseBlock(nn.ModuleDict):
-    def __init__(self,num_layers,channels):
-        super(DenseBlock, self).__init__()
-        for i in range(num_layers):
-            layer=DenseLayer(channels=channels)
-            self.add_module(f"denselayer{i+1}",layer)
-    def forward(self,x):
-        # x: 直前の層までの特徴量の総和
-        for i, (name,layer) in enumerate(self.items()):
-            # 平均を求めてDenseLayerに入力する
-            out = layer(x / (i + 1))
-            x = x + out
-        return x / (i + 1)
-
-class TransitionLayer(nn.Sequential):
-    def __init__(self,in_channels,out_channels):
-        super().__init__()
-        self.add_module("norm",nn.BatchNorm2d(in_channels))
-        self.add_module("relu",nn.ReLU(inplace=True))
-        self.add_module("conv",nn.Conv2d(in_channels,out_channels,kernel_size=1,bias=False))
+        out=self.norm2(out)
+        return self.relu2(out + x)
 
 class PolicyValueNetwork(nn.Module):
-    def __init__(self, blocks=(15,), channels=192, fcl=256):
+    def __init__(self, blocks=10, channels=192, fcl=256):
         super(PolicyValueNetwork, self).__init__()
         self.conv1_1_1 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=3, padding=1, bias=False)
         self.conv1_1_2 = nn.Conv2d(in_channels=FEATURES1_NUM, out_channels=channels, kernel_size=1, padding=0, bias=False)
         self.conv1_2 = nn.Conv2d(in_channels=FEATURES2_NUM, out_channels=channels, kernel_size=1, bias=False)
         self.norm1 = nn.BatchNorm2d(channels)
 
-        # Dense Block及びTransition Layerを作成
-        self.blocks=nn.Sequential()
-        for i,num_layers in enumerate(blocks):
-            block=DenseBlock(
-                num_layers=num_layers,
-                channels=channels
-            )
-            self.blocks.add_module(f"denseblock{i+1}",block)
+        # ResNet Blockを作成
+        self.blocks = nn.Sequential(*[ResNetBlock(channels) for _ in range(blocks)])
         
 
         # policy head
