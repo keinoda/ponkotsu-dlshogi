@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from mup import MuReadout
 
 from dlshogi.common import *
 
@@ -53,7 +54,7 @@ class PolicyValueNetwork(nn.Module):
         self.value_conv1 = nn.Conv2d(in_channels=channels, out_channels=MAX_MOVE_LABEL_NUM, kernel_size=1, bias=False)
         self.value_norm1 = nn.BatchNorm2d(MAX_MOVE_LABEL_NUM)
         self.value_fc1 = nn.Linear(9*9*MAX_MOVE_LABEL_NUM, fcl)
-        self.value_fc2 = nn.Linear(fcl, 1)
+        self.value_fc2 = MuReadout(fcl, 1, readout_zero_init=True)
 
     def forward(self, x1, x2):
         x_1_1 = self.conv1_1_1(x1)
