@@ -7,6 +7,7 @@ log_dir="${save_dir}/${name}"
 data_dir=$3
 cache_dir=$4
 last=$5
+network=$6
 
 if [ ! -d ${model_dir} ]; then
     mkdir -p ${model_dir}
@@ -51,7 +52,7 @@ for ((i=$start; i<=$last; i++)); do
 
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-     ${resume} --checkpoint ${checkpoint} --network policy_value_network_ponkotsu.PolicyValueNetwork --model ${model} -e 1\
+     ${resume} --checkpoint ${checkpoint} --network ${network} --model ${model} -e 1\
     --use_average --use_evalfix ${use_swa} --use_amp --temperature 0 --lr 0.2\
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_${kkk} --log ${log_dir}/train_log.txt
     
