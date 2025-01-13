@@ -9,6 +9,10 @@ log_dir="${save_dir}/${name}"
 data_dir=$3
 cache_dir=$4
 
+if [ ! -d ${model_dir} ]; then
+    mkdir -p ${model_dir}
+fi
+
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
     done
