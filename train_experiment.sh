@@ -1,5 +1,3 @@
-last=288
-
 # 変数設定
 save_dir=$1
 name=$2
@@ -8,6 +6,7 @@ model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
 data_dir=$3
 cache_dir=$4
+last=$5
 
 if [ ! -d ${model_dir} ]; then
     mkdir -p ${model_dir}
