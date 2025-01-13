@@ -53,7 +53,7 @@ for ((i=$start; i<=$last; i++)); do
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network ${network} --model ${model} -e 1\
-    --use_average --use_evalfix ${use_swa} --use_amp --temperature 0 --lr 0.2\
+    --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix ${use_swa} --use_amp --temperature 0 --lr 0.2\
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_${kkk} --log ${log_dir}/train_log.txt
     
     if [ $? -ne 0 ]; then
