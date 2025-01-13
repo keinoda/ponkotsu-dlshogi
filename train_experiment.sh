@@ -55,7 +55,14 @@ for ((i=$start; i<=$last; i++)); do
      ${resume} --checkpoint ${checkpoint} --network ${network} --model ${model} -e 1\
     --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix ${use_swa} --use_amp --temperature 0 --lr 0.2\
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_${kkk} --log ${log_dir}/train_log.txt
-    
+
+    # 6エポックごとに学習結果をノート
+    if [ $(($i % 6)) -eq 0 ]; then
+        text="$name\n"$(cat ${log_dir}/train_log.txt | grep "epoch = $i,"| tail -n 1 | cut -f 3)
+        curl -XPOST -H 'Content-Type:application/json' -d "{\"i\":\"$(cat ../jiskey_access_token)\",\"localOnly\":true,\"visibility\":\"specified\",\"visibleUserIds\":[\"9gptzj80qf\"],\"text\":\"$text\"}" https://jiskey.dev/api/notes/create
+        echo \n
+    fi
+
     if [ $? -ne 0 ]; then
         break
     fi
