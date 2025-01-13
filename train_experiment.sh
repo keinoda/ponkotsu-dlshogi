@@ -2,11 +2,12 @@ last=288
 
 # 変数設定
 save_dir=$1
-name="resnet10x154"
+name=$2
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
-data_dir=$2
+data_dir=$3
+cache_dir=$4
 
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
@@ -49,7 +50,7 @@ for ((i=$start; i<=$last; i++)); do
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network policy_value_network_ponkotsu.PolicyValueNetwork --model ${model} -e 1\
     --use_average --use_evalfix ${use_swa} --use_amp --temperature 0 --lr 0.2\
-    --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --cache ../train_cache/train_cache_${kkk} --log ${log_dir}/train_log.txt
+    --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_${kkk} --log ${log_dir}/train_log.txt
     
     if [ $? -ne 0 ]; then
         break
