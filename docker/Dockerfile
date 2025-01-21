@@ -36,7 +36,7 @@ RUN pip3 install cython scipy mup
 WORKDIR /tmp
 RUN git clone https://github.com/jj1guj/DeepLearningShogi && \
     cd DeepLearningShogi && \
-    git checkout use_mup && \
+    git checkout wcsc35 && \
     pip install -v . && \
     rm -r ~/.cache/pip && \
     rm -rf /tmp/DeepLearningShogi
