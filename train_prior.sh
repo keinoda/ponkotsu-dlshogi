@@ -1,13 +1,18 @@
-last=212
+last=378
 
 # 変数設定
 save_dir=$1
-name="densenet20_add_all"
+name=$2
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${save_dir}/${name}/model"
 log_dir="${save_dir}/${name}"
-data_dir=$2
-test_dir=$3
+data_dir=$3
+test_dir=$4
+cache_dir=$5
+
+if [ ! -d ${model_dir} ]; then
+    mkdir -p ${model_dir}
+fi
 
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
@@ -24,7 +29,7 @@ for ((i=$start; i<=$last; i++)); do
     jjj=$(printf "%03d" $(((i-1) % 53 + 300)))
     kkk=$(printf "%07d" $(((i-1) % 53 +115)))
     rrr=$(printf "%03d" $((i-1)))
-    src="${data_dir}/aoba_p1600_ply30-${iii} ${data_dir}/shogi_hao_depth9_ply30-${iii} ${data_dir}/shogi_suisho5_depth9_entering_king_ply30-${iii}"
+    src="${data_dir}/aoba_p1600-${iii} ${data_dir}/aoba_p3200-${iii} ${data_dir}/hao-${iii} ${data_dir}/suisho5_nyugyoku-${iii}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 1 ]; then
@@ -43,9 +48,14 @@ for ((i=$start; i<=$last; i++)); do
 
     # 学習
     python -m dlshogi.train ${src} ${test_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-     ${resume} --checkpoint ${checkpoint} --network policy_value_network_ponkotsu.PolicyValueNetwork --model ${model} -e 1\
-    --use_average --use_evalfix --use_amp --temperature 0 --lr 0.2\
-    --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --log ${log_dir}/train_log.txt
+     ${resume} --checkpoint ${checkpoint} --network policy_value_network_pre_ln.PolicyValueNetwork --model ${model} -e 1\
+    --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix --use_amp --temperature 0 --lr 0.2\
+    --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_prior_${iii} --log ${log_dir}/train_log.txt
+
+    # 学習結果をノート
+    text="$name\n"$(cat ${log_dir}/train_log.txt | grep "epoch = $i,"| tail -n 1 | cut -f 3)
+    curl -XPOST -H 'Content-Type:application/json' -d "{\"i\":\"$(cat ../jiskey_access_token)\",\"localOnly\":true,\"visibility\":\"specified\",\"visibleUserIds\":[\"9gptzj80qf\"],\"text\":\"$text\"}" https://jiskey.dev/api/notes/create
+    echo \n
 
     
     if [ $? -ne 0 ]; then
