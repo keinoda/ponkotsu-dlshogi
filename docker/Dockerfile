@@ -31,7 +31,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
 
 RUN pip3 install --upgrade pip
 RUN pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu126
-RUN pip3 install cython scipy mup
+RUN pip3 install cython scipy mup cshogi
 
 WORKDIR /tmp
 RUN git clone https://github.com/jj1guj/DeepLearningShogi && \
