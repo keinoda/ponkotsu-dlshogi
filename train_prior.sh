@@ -29,7 +29,7 @@ for ((i=$start; i<=$last; i++)); do
     jjj=$(printf "%03d" $(((i-1) % 53 + 300)))
     kkk=$(printf "%07d" $(((i-1) % 53 +115)))
     rrr=$(printf "%03d" $((i-1)))
-    src="${data_dir}/aoba_p1600-${iii} ${data_dir}/aoba_p3200-${iii} ${data_dir}/hao-${iii} ${data_dir}/suisho5_nyugyoku-${iii}"
+    src="${data_dir}/aoba_p1600-${iii} ${data_dir}/aoba_p3200-${iii} ${data_dir}/hao-${iii} ${data_dir}/tanuki_20240730-${iii} ${data_dir}/suisho5_nyugyoku-${iii}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 1 ]; then
