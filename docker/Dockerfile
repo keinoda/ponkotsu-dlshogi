@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/tensorrt:24.12-py3
+FROM nvcr.io/nvidia/tensorrt:25.02-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -s -f /bin/true /usr/bin/chfn
@@ -42,9 +42,8 @@ RUN git clone https://github.com/jj1guj/DeepLearningShogi && \
     rm -rf /tmp/DeepLearningShogi
 
 WORKDIR /tmp
-RUN git clone https://github.com/jj1guj/YaneuraOu && \
+RUN git clone https://github.com/yaneurao/YaneuraOu && \
     cd YaneuraOu && \
-    git checkout tensorrt10_support && \
     cd source && \
     make -j $(nproc) tournament COMPILER=clang++ YANEURAOU_EDITION=YANEURAOU_ENGINE_DEEP_TENSOR_RT_UBUNTU ENGINE_NAME="FukauraOu" && \
     cp ./YaneuraOu-by-gcc /usr/local/bin && \
