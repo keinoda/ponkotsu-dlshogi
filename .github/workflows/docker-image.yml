@@ -41,3 +41,11 @@ jobs:
           file: ./docker/Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/ponkotsu_wcsc33:latest
+
+      - name: Build and push Docker development image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.develop
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ponkotsu_wcsc33:develop
