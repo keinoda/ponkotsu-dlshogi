@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/tensorrt:25.02-py3
+FROM nvcr.io/nvidia/tensorrt:24.12-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -s -f /bin/true /usr/bin/chfn
@@ -30,8 +30,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --upgrade pip
-RUN pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128
-RUN pip3 install cython scipy mup cshogi
+RUN pip3 install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu126
+RUN pip3 install cython scipy mup cshogi onnx
 
 WORKDIR /tmp
 RUN git clone https://github.com/jj1guj/DeepLearningShogi && \
