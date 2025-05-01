@@ -8,20 +8,21 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     git \
     pkg-config \
     software-properties-common \
+    curl fish \
     build-essential libopenblas-dev \
     clang lld clangd \
     libjemalloc-dev libjemalloc2  && \
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y nodejs && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-WORKDIR /tmp
-RUN git clone https://github.com/yaneurao/YaneuraOu && \
-    cd YaneuraOu && \
-    cd source && \
-    make -j $(nproc) tournament COMPILER=clang++ YANEURAOU_EDITION=YANEURAOU_ENGINE_DEEP_TENSOR_RT_UBUNTU ENGINE_NAME="FukauraOu" && \
-    cp ./YaneuraOu-by-gcc /usr/local/bin && \
-    rm -rf /tmp/YaneuraOu
-
 WORKDIR /root
+RUN npm install -g usi-csa-bridge
+
+RUN mkdir book && mkdir models
+
+RUN git clone https://github.com/yaneurao/YaneuraOu
+
 ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so
