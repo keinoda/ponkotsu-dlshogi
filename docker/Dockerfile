@@ -18,8 +18,17 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+WORKDIR /tmp
+
+RUN git clone https://github.com/sunfish-shogi/shogihome.git && \
+    cd shogihome && \
+    git checkout v1.21.5 && \
+    npm install && \
+    npm run usi-csa-bridge:install && \
+    cd /tmp && \
+    rm -rf shogihome
+
 WORKDIR /root
-RUN npm install -g usi-csa-bridge
 
 RUN mkdir book && mkdir models
 
