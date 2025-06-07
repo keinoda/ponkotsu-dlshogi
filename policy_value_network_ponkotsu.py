@@ -27,7 +27,7 @@ class ResNetBlock(nn.Module):
         out=self.conv1(x)
         out=self.norm1(out)
         out=self.relu1(out)
-        
+
         out=self.conv2(out)
         out=self.norm2(out)
         return self.relu2(out + x)
@@ -42,7 +42,7 @@ class PolicyValueNetwork(nn.Module):
 
         # ResNet Blockを作成
         self.blocks = nn.Sequential(*[ResNetBlock(channels) for _ in range(blocks)])
-        
+
 
         # policy head
         self.policy_conv = nn.Conv2d(in_channels=channels, out_channels=MAX_MOVE_LABEL_NUM, kernel_size=1, bias=False)
