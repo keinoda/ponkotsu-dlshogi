@@ -25,46 +25,87 @@ class ResNetBlock(nn.Module):
     def __init__(self, channels):
         super(ResNetBlock, self).__init__()
         self.router = Router(channels)
-        self.norm1=[
+        self.norm1 = nn.ModuleList([
             nn.BatchNorm2d(channels),
             nn.BatchNorm2d(channels),
             nn.BatchNorm2d(channels)
-        ]
-        self.relu1=[
+        ])
+        self.relu1 = nn.ModuleList([
             nn.ReLU(inplace=True),
             nn.ReLU(inplace=True),
             nn.ReLU(inplace=True)
-        ]
-        self.conv1=[
+        ])
+        self.conv1 = nn.ModuleList([
             nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False),
             nn.Conv2d(channels,channels,kernel_size=(1,9),padding=(0,4),bias=False),
             nn.Conv2d(channels,channels,kernel_size=1,padding=0,bias=False)
-        ]
-        self.norm2=[
+        ])
+        self.norm2 = nn.ModuleList([
             nn.BatchNorm2d(channels),
             nn.BatchNorm2d(channels),
             nn.BatchNorm2d(channels)
-        ]
-        self.relu2=[
+        ])
+        self.relu2 = nn.ModuleList([
             nn.ReLU(inplace=True),
             nn.ReLU(inplace=True),
             nn.ReLU(inplace=True)
-        ]
-        self.conv2=[
+        ])
+        self.conv2 = nn.ModuleList([
             nn.Conv2d(channels,channels,kernel_size=3,padding=1,bias=False),
             nn.Conv2d(channels,channels,kernel_size=(9,1),padding=(4,0),bias=False),
             nn.Conv2d(channels,channels,kernel_size=1,padding=0,bias=False)
-        ]
+        ])
 
     def forward(self, x):
-        route = torch.argmax(self.router(x), 1)
-        out=self.conv1[route](x)
-        out=self.norm1[route](out)
-        out=self.relu1[route](out)
+        route_probs = self.router(x)
 
-        out=self.conv2[route](out)
-        out=self.norm2[route](out)
-        return self.relu2[route](out + x)
+        if self.training:
+            # 訓練時：ソフトルーティング（勾配の流れを良くする）
+            route_probs_soft = F.softmax(route_probs, dim=1)
+
+            # 全てのエキスパートの出力を計算
+            expert_outputs = []
+            identity = x
+
+            for i in range(3):
+                out = self.conv1[i](x)
+                out = self.norm1[i](out)
+                out = self.relu1[i](out)
+
+                out = self.conv2[i](out)
+                out = self.norm2[i](out)
+                out = self.relu2[i](out + identity)
+
+                expert_outputs.append(out)
+
+            # 重み付き平均で結合
+            expert_outputs = torch.stack(expert_outputs, dim=1)
+            route_probs_soft = route_probs_soft.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+            output = torch.sum(expert_outputs * route_probs_soft, dim=1)
+
+        else:
+            # 推論時：ハードルーティング（効率重視）
+            route = torch.argmax(route_probs, 1)
+            outputs = torch.zeros_like(x)
+            identity = x
+
+            for expert_id in range(3):
+                mask = (route == expert_id)
+                if mask.any():
+                    masked_x = x[mask]
+                    out = self.conv1[expert_id](masked_x)
+                    out = self.norm1[expert_id](out)
+                    out = self.relu1[expert_id](out)
+
+                    out = self.conv2[expert_id](out)
+                    out = self.norm2[expert_id](out)
+                    out = self.relu2[expert_id](out + masked_x)
+
+                    outputs[mask] = out
+
+            output = outputs
+
+        return output
 
 class PolicyValueNetwork(nn.Module):
     def __init__(self, blocks=10, channels=154, fcl=154):
