@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>定跡探索局面一覧</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="header">
+        <h1>定跡探索局面一覧</h1>
+        <p>{{ loaded_boards }} / {{ total_boards }} の盤面を表示中</p>
+    </div>
+
+    <div class="boards-grid">
+        {% for board in boards %}
+        <div class="board-card" data-board-index="{{ board.index }}">
+            <div class="board-header">
+                <div class="board-title">盤面 {{ board.board_index }}</div>
+                <div class="move-count">{{ board.move_count }} 手</div>
+            </div>
+
+            <div class="board-content">
+                <div class="board-svg">
+                    {{ board.board_svg|safe }}
+                </div>
+
+                <div class="board-info">
+                    <div class="move-preview">
+                        <h4>手順一覧</h4>
+                        <ul class="move-list">
+                            {% for move in board.move_preview %}
+                            <li data-move-index="{{ loop.index0 }}">{{ move }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="nav-button" data-action="first" title="初期局面">|◀</button>
+                <button class="nav-button" data-action="prev" title="前の手">◀</button>
+                <div class="move-info">
+                    <div class="current-move">初期局面</div>
+                    <div><span class="current-index">初期</span> / {{ board.move_count }}</div>
+                </div>
+                <button class="nav-button" data-action="next" title="次の手">▶</button>
+                <button class="nav-button" data-action="last" title="最終局面">▶|</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if has_more_boards %}
+    <div class="load-more-container" id="loading-indicator" style="display: none;">
+        <div class="loading-spinner">読み込み中...</div>
+    </div>
+    {% endif %}
+
+    <!-- 無限スクロール用のデータを保存 -->
+    <div id="scroll-data" data-has-more-boards="{{ 'true' if has_more_boards else 'false' }}"
+        data-current-offset="{{ loaded_boards }}" style="display: none;">
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+
+</html>
