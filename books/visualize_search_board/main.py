@@ -2,12 +2,68 @@ import pickle
 import argparse
 import cshogi
 import cshogi.KIF
+import os
+import threading
+import time
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__)
 
 # グローバル変数として指し手のリストを保存
 moves_list = []
+pickle_file_path = ""
+last_modified_time = 0
+
+class PickleFileHandler(FileSystemEventHandler):
+    """Pickleファイルの変更を監視するハンドラー"""
+    
+    def on_modified(self, event):
+        global last_modified_time, pickle_file_path
+        if event.is_directory:
+            return
+        
+        if event.src_path == pickle_file_path:
+            # ファイルの更新時刻をチェックして重複読み込みを防ぐ
+            current_modified_time = os.path.getmtime(pickle_file_path)
+            if current_modified_time > last_modified_time:
+                print(f"Pickle file updated: {pickle_file_path}")
+                load_pickle_file()
+
+def load_pickle_file():
+    """Pickleファイルを読み込む"""
+    global moves_list, last_modified_time, pickle_file_path
+    try:
+        with open(pickle_file_path, "rb") as f:
+            new_moves_list = pickle.load(f)
+        
+        # 成功した場合のみ更新
+        moves_list = new_moves_list
+        last_modified_time = os.path.getmtime(pickle_file_path)
+        print(f"Successfully loaded {len(moves_list)} board sequences")
+        
+    except Exception as e:
+        print(f"Error loading pickle file: {e}")
+        # エラーの場合は既存のデータを保持
+
+def setup_file_watcher():
+    """ファイル監視を設定"""
+    global pickle_file_path
+    if not os.path.exists(pickle_file_path):
+        print(f"Warning: Pickle file does not exist: {pickle_file_path}")
+        return None
+    
+    event_handler = PickleFileHandler()
+    observer = Observer()
+    
+    # ファイルのディレクトリを監視
+    watch_directory = os.path.dirname(os.path.abspath(pickle_file_path))
+    observer.schedule(event_handler, watch_directory, recursive=False)
+    
+    observer.start()
+    print(f"Started watching for changes in: {watch_directory}")
+    return observer
 
 def get_move_display(move, move_index):
     """指し手を表示用の文字列に変換"""
@@ -171,9 +227,23 @@ if __name__ == "__main__":
     args.add_argument('--port', type=int, default=5000)
     args = args.parse_args()
     
-    with open(args.pickle_file, "rb") as f:
-        moves_list = pickle.load(f)
+    # グローバル変数を設定
+    pickle_file_path = os.path.abspath(args.pickle_file)
     
-    print(f"Loaded {len(moves_list)} board sequences")
-    print(f"Starting web server on http://localhost:{args.port}")
-    app.run(host='0.0.0.0', port=args.port, debug=True)
+    # 初回読み込み
+    print(f"Initial loading of pickle file: {pickle_file_path}")
+    load_pickle_file()
+    
+    # ファイル監視を開始
+    observer = setup_file_watcher()
+    
+    try:
+        print(f"Starting web server on http://localhost:{args.port}")
+        app.run(host='0.0.0.0', port=args.port, debug=True, use_reloader=False)
+    except KeyboardInterrupt:
+        print("Shutting down...")
+    finally:
+        if observer:
+            observer.stop()
+            observer.join()
+            print("File watcher stopped")
