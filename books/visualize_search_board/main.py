@@ -210,8 +210,8 @@ def get_boards_paginated():
                 'sfen': initial_board.sfen(),
                 'move_count': len(history),
                 'move_preview': [get_move_display(mv, j)
-                               for j, mv in enumerate(history[:10])],
-                'has_more_moves': len(history) > 10
+                               for j, mv in enumerate(history)],
+                'has_more_moves': False
             })
     
     return jsonify({
