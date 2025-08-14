@@ -1,6 +1,7 @@
 import argparse
 import cshogi
 import numpy as np
+import pickle
 import tqdm
 
 c_puct = 0.1
@@ -43,6 +44,9 @@ class Node:
         self.child_score = []
         self.child_score_sum = []
         self.child_p = None
+        self.parent_move = None
+        self.parent_move_count = 0
+        self.parent_key = None
 
 def search(node):
     global depth0_count
@@ -62,12 +66,24 @@ def search(node):
         book_tree[next_board_key].value = 1.0 - node.child_score[search_node]
         depth0_count += 1
     next_node = book_tree[next_board.zobrist_hash()]
+    if node.child_move_count[search_node] >= next_node.parent_move_count:
+        next_node.parent_key = node.board.zobrist_hash()
+        next_node.parent_move = node.board.move_from_usi(node.child_move[search_node])
     value = search(next_node)
     value = 1.0 - value
 
     node.sum_value += value
     node.child_score_sum[search_node] += value
     return value
+
+def get_history(node, history=None):
+    if history is None:
+        history = []
+    if node.parent_key is None or node.board.zobrist_hash() == cshogi.Board().zobrist_hash():
+        return
+    history.append(node.parent_move)
+    parent_node = book_tree[node.parent_key]
+    get_history(parent_node, history)
 
 def rotate(board):
     return cshogi.Board(cshogi.rotate_sfen(board.sfen()))
@@ -76,14 +92,10 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument('book')
     args.add_argument('sfens')
-    # args.add_argument('boards')
-    # args.add_argument('num')
+    args.add_argument('boards')
     args = args.parse_args()
 
-    book_path = args.book
-    # sfens_path = args.sfens
-
-    with open(book_path, "r") as f:
+    with open(args.book, "r") as f:
         books = f.readlines()
         books = [s.replace("\n", "") for s in books[1:]]
 
@@ -130,7 +142,7 @@ if __name__ == "__main__":
     first_board = cshogi.Board()
     first_board_key = first_board.zobrist_hash()
 
-    count = 1
+    count = 0
     print("Starting search...")
     pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
     while count < 200000:
@@ -141,6 +153,22 @@ if __name__ == "__main__":
     move_count_list = [(node.move_count, key) for node, key in zip(book_tree.values(), book_tree.keys()) if not node.child_move]
     move_count_list.sort(reverse=True)
     move_count_list = move_count_list[:1000]
-    sfens_list = [f"sfen {book_tree[key].board.sfen()}\n" for _, key in move_count_list]
+
+    moves_list = []
+    sfens_list = []
+    for move_count, key in move_count_list:
+        moves = []
+        get_history(book_tree[key], moves)
+        moves.reverse()
+        moves_list.append(moves)
+
+        board = cshogi.Board()
+        for move in moves:
+            board.push(move)
+        sfens_list.append(f"sfen {board.sfen()}\n")
+
     with open(args.sfens, "w") as f:
         f.writelines(sfens_list)
+
+    with open(args.boards, "wb") as f:
+        pickle.dump(moves_list, f)
