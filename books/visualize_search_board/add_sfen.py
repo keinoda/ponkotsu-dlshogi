@@ -14,6 +14,9 @@ if "sfen" not in sfens[-1]:
 with open(args.add_sfens, "r") as f:
     add_sfens = f.readlines()
 
+if add_sfens[-1] == "\n":
+    add_sfens = add_sfens[:-1]
+
 add_sfens = [f"sfen {s}" for s in add_sfens]
 
 sfens += add_sfens
