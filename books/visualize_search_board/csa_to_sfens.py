@@ -31,7 +31,7 @@ for csa_file in csa_file_list:
     board = cshogi.Board()
     for move, score in zip(parser.moves, parser.scores):
         board.push(move)
-        boards[board.zobrist_hash()] = f"sfen {board.sfen()}\n"
+        boards[board.zobrist_hash()] = f"{board.sfen()}\n"
         if abs(score) > args.filter_score:
             break
 
