@@ -29,11 +29,13 @@ for csa_file in csa_file_list:
         continue
 
     board = cshogi.Board()
+    score_before = 100000
     for move, score in zip(parser.moves, parser.scores):
         board.push(move)
         boards[board.zobrist_hash()] = f"{board.sfen()}\n"
-        if abs(score) > args.filter_score:
+        if min(abs(score), score_before) > args.filter_score:
             break
+        score_before = abs(score)
 
 sfens = list(boards.values())
 with open(args.sfens, "w") as f:
