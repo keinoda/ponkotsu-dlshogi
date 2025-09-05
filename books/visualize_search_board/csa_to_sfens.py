@@ -28,11 +28,11 @@ for csa_file in csa_file_list:
     if rating < args.filter_rating:
         continue
 
-    board = cshogi.Board()
+    board = cshogi.Board(sfen=parser.sfen)
     score_before = 100000
     for move, score in zip(parser.moves, parser.scores):
         board.push(move)
-        boards[board.zobrist_hash()] = f"{board.sfen()}\n"
+        boards[board.zobrist_hash()] = f"sfen {board.sfen()}\n"
         if min(abs(score), score_before) > args.filter_score:
             break
         score_before = abs(score)
