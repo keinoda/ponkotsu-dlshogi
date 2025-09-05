@@ -32,7 +32,7 @@ for csa_file in csa_file_list:
     score_before = 100000
     for move, score in zip(parser.moves, parser.scores):
         board.push(move)
-        boards[board.zobrist_hash()] = f"sfen {board.sfen()}\n"
+        boards[board.zobrist_hash()] = f"{board.sfen()}\n"
         if min(abs(score), score_before) > args.filter_score:
             break
         score_before = abs(score)
