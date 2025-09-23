@@ -65,22 +65,29 @@ def search(node):
     next_board.push(node.child_move[search_node])
     next_board_key = next_board.zobrist_hash()
 
-    if next_board_key not in book_tree:
-        book_tree[next_board_key] = Node()
-        book_tree[next_board_key].board = next_board.copy()
-        # 評価値が定跡ツリーに登録されていれば定跡ツリーの値を使う
-        # なければDLで評価した値を使う
-        if node.child_move[search_node] in book_tree[node.board.zobrist_hash()].child_move:
+    # 次の局面が末端ノードの場合定跡ツリーに登録されているか確認し、登録されていれば定跡ツリーの値で置き換える
+    if not dl_data_tree[next_board_key].child_move:
+        if node.board.zobrist_hash() in book_tree and node.child_move[search_node] in book_tree[node.board.zobrist_hash()].child_move:
             index = book_tree[node.board.zobrist_hash()].child_move.index(node.child_move[search_node])
-            book_tree[next_board_key].value = 1.0 - book_tree[node.board.zobrist_hash()].child_score[index]
-        else:
-            # DLについては事前に全合法手分推論してvalueを登録しておくこと
-            if next_board_key in dl_data_tree:
-                book_tree[next_board_key].value = dl_data_tree[next_board_key].value
-            else:
-                # 保険として0.5を入れておく
-                book_tree[next_board_key].value = 0.5
+            dl_data_tree[next_board_key].value = 1.0 - book_tree[node.board.zobrist_hash()].child_score[index]
         depth0_count += 1
+
+    # if next_board_key not in book_tree:
+    #     book_tree[next_board_key] = Node()
+    #     book_tree[next_board_key].board = next_board.copy()
+    #     # 評価値が定跡ツリーに登録されていれば定跡ツリーの値を使う
+    #     # なければDLで評価した値を使う
+    #     if node.board.zobrist_hash() in book_tree and node.child_move[search_node] in book_tree[node.board.zobrist_hash()].child_move:
+    #         index = book_tree[node.board.zobrist_hash()].child_move.index(node.child_move[search_node])
+    #         book_tree[next_board_key].value = 1.0 - book_tree[node.board.zobrist_hash()].child_score[index]
+    #     else:
+    #         # DLについては事前に全合法手分推論してvalueを登録しておくこと
+    #         if next_board_key in dl_data_tree:
+    #             book_tree[next_board_key].value = dl_data_tree[next_board_key].value
+    #         else:
+    #             # 保険として0.5を入れておく
+    #             book_tree[next_board_key].value = 0.5
+    #     depth0_count += 1
 
     next_node = dl_data_tree[next_board.zobrist_hash()]
     value = search(next_node)
@@ -105,10 +112,8 @@ def rotate(board):
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument('book')
-    args.add_argument('model')
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
-    # args.add_argument('boards')
     args = args.parse_args()
 
     with open(args.book, "r") as f:
@@ -162,11 +167,12 @@ if __name__ == "__main__":
     for key, node in dl_data.items():
         dl_data_tree[key] = Node()
         dl_data_tree[key].board = cshogi.Board(sfen=node.sfen)
-        dl_data_tree[key].child_move = node.legal_moves
-        dl_data_tree[key].child_move_count = [0 for i in range(len(node.legal_moves))]
-        dl_data_tree[key].child_score = [None for i in range(len(node.legal_moves))]
-        dl_data_tree[key].child_score_sum = [0 for i in range(len(node.legal_moves))]
-        dl_data_tree[key].child_policy = softmax_temperature_with_normalization(node.policy_logits, 1.76)
+        if node.legal_moves is not None:
+            dl_data_tree[key].child_move = node.legal_moves
+            dl_data_tree[key].child_move_count = np.zeros(len(node.legal_moves), dtype=np.float32)
+            # dl_data_tree[key].child_score = [None for i in range(len(node.legal_moves))]
+            dl_data_tree[key].child_score_sum = np.zeros(len(node.legal_moves), dtype=np.float32)
+            dl_data_tree[key].child_policy = softmax_temperature_with_normalization(node.policy_logits, 1.76)
         dl_data_tree[key].value = node.value
 
     first_board = cshogi.Board()
@@ -176,29 +182,18 @@ if __name__ == "__main__":
     print("Starting search...")
     pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
     while count < 200000:
-        search(book_tree[first_board_key])
+        search(dl_data_tree[first_board_key])
         pbar.update(1)
         count += 1
     pbar.close()
-    move_count_list = [(node.move_count, key) for node, key in zip(book_tree.values(), book_tree.keys()) if not node.child_move]
+    move_count_list = [(node.move_count, key) for node, key in zip(dl_data_tree.values(), dl_data_tree.keys()) if not node.child_move]
     move_count_list.sort(reverse=True)
-    move_count_list = move_count_list[:1000]
+    move_count_list = move_count_list[:min(len(move_count_list), 1000)]
 
     moves_list = []
     sfens_list = []
-    for move_count, key in move_count_list:
-        moves = []
-        get_history(book_tree[key], moves)
-        moves.reverse()
-        moves_list.append(moves)
-
-        board = cshogi.Board()
-        for move in moves:
-            board.push(move)
-        sfens_list.append(f"sfen {board.sfen()}\n")
+    for _, key in move_count_list:
+        sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
 
     with open(args.sfens, "w") as f:
         f.writelines(sfens_list)
-
-    # with open(args.boards, "wb") as f:
-    #     pickle.dump(moves_list, f)
