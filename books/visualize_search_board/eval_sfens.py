@@ -13,7 +13,14 @@ def eval_sfens(session, sfens, batch_size, out=None):
 
     if out is None:
         out = dict()
-    eval_board_list = [cshogi.Board(sfen=sfen) for sfen in sfens if cshogi.Board(sfen=sfen).zobrist_hash() not in out]
+    eval_board_list = []
+    for sfen in sfens:
+        board = cshogi.Board(sfen=sfen)
+        key = board.zobrist_hash()
+        if key not in out:
+            eval_board_list.append(board)
+        elif out[key].policy_logits is None:
+            eval_board_list.append(board)
 
     for i in tqdm.tqdm(range(0, len(eval_board_list), batch_size)):
         for j in range(batch_size):
@@ -29,6 +36,33 @@ def eval_sfens(session, sfens, batch_size, out=None):
                 node.policy_logits = make_logits(eval_board_list[i + j], policy_logits[j])
                 node.value = values[j][0]
                 node.legal_moves = list(eval_board_list[i + j].legal_moves)
+                out[eval_board_list[i + j].zobrist_hash()] = node
+    return out
+
+# sfen文字列のリストに対し推論を行う(合法手のpolicyは計算しない)
+# 末端ノード用
+def eval_sfens_without_policy(session, sfens, batch_size, out=None):
+    x1 = np.empty((batch_size, FEATURES1_NUM, 9, 9), dtype=np.float32)
+    x2 = np.empty((batch_size, FEATURES2_NUM, 9, 9), dtype=np.float32)
+    # ダミー推論をして推論を速くする
+    eval(session, x1, x2)
+
+    if out is None:
+        out = dict()
+    eval_board_list = [cshogi.Board(sfen=sfen) for sfen in sfens if cshogi.Board(sfen=sfen).zobrist_hash() not in out]
+
+    for i in tqdm.tqdm(range(0, len(eval_board_list), batch_size)):
+        for j in range(batch_size):
+            if i + j < len(eval_board_list):
+                make_input_features(eval_board_list[i + j], x1[j], x2[j])
+            else:
+                make_input_features(cshogi.Board(), x1[j], x2[j])
+        _, values = eval(session, x1, x2)
+        for j in range(batch_size):
+            if i + j < len(eval_board_list):
+                node = EvalNode()
+                node.sfen = eval_board_list[i + j].sfen()
+                node.value = values[j][0]
                 out[eval_board_list[i + j].zobrist_hash()] = node
     return out
 
@@ -66,7 +100,7 @@ if __name__ == "__main__":
             if board.zobrist_hash() not in out:
                 sfens.append(board.sfen())
 
-    out = eval_sfens(session, sfens, batch_size, out)
+    out = eval_sfens_without_policy(session, sfens, batch_size, out)
 
     with open(args.pickle, "wb") as f:
         pickle.dump(out, f)
