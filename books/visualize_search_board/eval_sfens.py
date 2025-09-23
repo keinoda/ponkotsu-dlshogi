@@ -94,11 +94,12 @@ if __name__ == "__main__":
     # 登録されている全局面の合法手の評価値を計算する
     sfens = []
     for node in out.values():
-        for move in node.legal_moves:
-            board = cshogi.Board(sfen=node.sfen)
-            board.push_usi(cshogi.to_usi(move).decode())
-            if board.zobrist_hash() not in out:
-                sfens.append(board.sfen())
+        if node.legal_moves is not None:
+            for move in node.legal_moves:
+                board = cshogi.Board(sfen=node.sfen)
+                board.push_usi(cshogi.to_usi(move).decode())
+                if board.zobrist_hash() not in out:
+                    sfens.append(board.sfen())
 
     out = eval_sfens_without_policy(session, sfens, batch_size, out)
 
