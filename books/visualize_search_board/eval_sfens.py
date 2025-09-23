@@ -24,7 +24,7 @@ def eval_sfens(session, sfens, batch_size, out=None):
         policy_logits, values = eval(session, x1, x2)
         for j in range(batch_size):
             if i + j < len(eval_board_list):
-                node = Node()
+                node = EvalNode()
                 node.sfen = eval_board_list[i + j].sfen()
                 node.policy_logits = make_logits(eval_board_list[i + j], policy_logits[j])
                 node.value = values[j][0]
@@ -56,6 +56,17 @@ if __name__ == "__main__":
         eval_sfen_list += [cshogi.rotate_sfen(sfen) for sfen in eval_sfen_list]
 
     out = eval_sfens(session, eval_sfen_list, batch_size, out)
+
+    # 登録されている全局面の合法手の評価値を計算する
+    sfens = []
+    for node in out.values():
+        for move in node.legal_moves:
+            board = cshogi.Board(sfen=node.sfen)
+            board.push_usi(cshogi.to_usi(move).decode())
+            if board.zobrist_hash() not in out:
+                sfens.append(board.sfen())
+
+    out = eval_sfens(session, sfens, batch_size, out)
 
     with open(args.pickle, "wb") as f:
         pickle.dump(out, f)
