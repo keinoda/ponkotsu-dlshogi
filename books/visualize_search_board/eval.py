@@ -5,7 +5,7 @@ import numpy as np
 import onnxruntime
 import pickle
 
-class Node:
+class EvalNode:
     def __init__(self):
         self.sfen = None
         self.policy_logits = None
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     policy, values = eval(session, x1, x2)
     logits = make_logits(board, policy[0])
 
-    node = Node()
+    node = EvalNode()
     node.sfen = board.sfen()
     node.policy_logits = logits
     node.value = values[0][0]
