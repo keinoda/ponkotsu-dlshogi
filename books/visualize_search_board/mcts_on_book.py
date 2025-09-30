@@ -1,5 +1,6 @@
 import argparse
 import cshogi
+from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR
 import numpy as np
 import pickle
 import tqdm
@@ -60,12 +61,27 @@ def search(node):
     next_board = node.board.copy()
     next_board.push_usi(node.child_move[search_node])
     next_board_key = next_board.zobrist_hash()
+
+    # 引き分けの判定
+    draw = next_board.is_draw()
+    if draw != NOT_REPETITION:
+        if draw == REPETITION_DRAW:
+            # 千日手
+            return 0.5
+        elif draw == REPETITION_WIN or draw == REPETITION_SUPERIOR:
+            # 連続王手の千日手で勝ちもしくは優越局面
+            return 1.0
+        else:
+            # 連続王手の千日手で負けもしくは劣等局面
+            return 0.0
+
     if next_board_key not in book_tree:
         book_tree[next_board_key] = Node()
         book_tree[next_board_key].board = next_board.copy()
         book_tree[next_board_key].value = 1.0 - node.child_score[search_node]
         depth0_count += 1
     next_node = book_tree[next_board.zobrist_hash()]
+    next_node.board = next_board # history保持のためboardごとコピーする
     if node.child_move_count[search_node] >= next_node.parent_move_count:
         next_node.parent_key = node.board.zobrist_hash()
         next_node.parent_move = node.board.move_from_usi(node.child_move[search_node])
@@ -139,7 +155,7 @@ if __name__ == "__main__":
         book_tree[key].child_score = score_to_value(book_tree[key].child_score, a)
         book_tree[key].child_p = softmax_temperature_with_normalization(book_tree[key].child_score, 1.0)
 
-    first_board = cshogi.Board()
+    first_board = cshogi.Board(sfen="lnsgk1snl/1r4gb1/p1pppp1pp/6p2/1p7/2PP3P1/PPB1PPP1P/2G4R1/LNS1KGSNL w - 1")
     first_board_key = first_board.zobrist_hash()
 
     count = 0
@@ -152,7 +168,7 @@ if __name__ == "__main__":
     pbar.close()
     move_count_list = [(node.move_count, key) for node, key in zip(book_tree.values(), book_tree.keys()) if not node.child_move]
     move_count_list.sort(reverse=True)
-    move_count_list = move_count_list[:1000]
+    move_count_list = move_count_list[:min(len(move_count_list), 1000)]
 
     moves_list = []
     sfens_list = []

@@ -1,5 +1,6 @@
 import argparse
 import cshogi
+from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR
 import numpy as np
 import pickle
 import tqdm
@@ -65,6 +66,19 @@ def search(node):
     next_board.push(node.child_move[search_node])
     next_board_key = next_board.zobrist_hash()
 
+    # 引き分けの判定
+    draw = next_board.is_draw()
+    if draw != NOT_REPETITION:
+        if draw == REPETITION_DRAW:
+            # 千日手
+            return 0.5
+        elif draw == REPETITION_WIN or draw == REPETITION_SUPERIOR:
+            # 連続王手の千日手で勝ちもしくは優越局面
+            return 1.0
+        else:
+            # 連続王手の千日手で負けもしくは劣等局面
+            return 0.0
+
     # 次の局面が末端ノードの場合定跡ツリーに登録されているか確認し、登録されていれば定跡ツリーの値で置き換える
     if not dl_data_tree[next_board_key].child_move:
         if node.board.zobrist_hash() in book_tree and node.child_move[search_node] in book_tree[node.board.zobrist_hash()].child_move:
@@ -72,24 +86,8 @@ def search(node):
             dl_data_tree[next_board_key].value = 1.0 - book_tree[node.board.zobrist_hash()].child_score[index]
         depth0_count += 1
 
-    # if next_board_key not in book_tree:
-    #     book_tree[next_board_key] = Node()
-    #     book_tree[next_board_key].board = next_board.copy()
-    #     # 評価値が定跡ツリーに登録されていれば定跡ツリーの値を使う
-    #     # なければDLで評価した値を使う
-    #     if node.board.zobrist_hash() in book_tree and node.child_move[search_node] in book_tree[node.board.zobrist_hash()].child_move:
-    #         index = book_tree[node.board.zobrist_hash()].child_move.index(node.child_move[search_node])
-    #         book_tree[next_board_key].value = 1.0 - book_tree[node.board.zobrist_hash()].child_score[index]
-    #     else:
-    #         # DLについては事前に全合法手分推論してvalueを登録しておくこと
-    #         if next_board_key in dl_data_tree:
-    #             book_tree[next_board_key].value = dl_data_tree[next_board_key].value
-    #         else:
-    #             # 保険として0.5を入れておく
-    #             book_tree[next_board_key].value = 0.5
-    #     depth0_count += 1
-
     next_node = dl_data_tree[next_board.zobrist_hash()]
+    next_node.board = next_board # history保持のためboardごとコピーする
     value = search(next_node)
     value = 1.0 - value
 
