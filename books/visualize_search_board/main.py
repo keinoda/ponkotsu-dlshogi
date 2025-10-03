@@ -18,12 +18,12 @@ last_modified_time = 0
 
 class PickleFileHandler(FileSystemEventHandler):
     """Pickleファイルの変更を監視するハンドラー"""
-    
+
     def on_modified(self, event):
         global last_modified_time, pickle_file_path
         if event.is_directory:
             return
-        
+
         if event.src_path == pickle_file_path:
             # ファイルの更新時刻をチェックして重複読み込みを防ぐ
             current_modified_time = os.path.getmtime(pickle_file_path)
@@ -37,12 +37,12 @@ def load_pickle_file():
     try:
         with open(pickle_file_path, "rb") as f:
             new_moves_list = pickle.load(f)
-        
+
         # 成功した場合のみ更新
         moves_list = new_moves_list
         last_modified_time = os.path.getmtime(pickle_file_path)
         print(f"Successfully loaded {len(moves_list)} board sequences")
-        
+
     except Exception as e:
         print(f"Error loading pickle file: {e}")
         # エラーの場合は既存のデータを保持
@@ -53,14 +53,14 @@ def setup_file_watcher():
     if not os.path.exists(pickle_file_path):
         print(f"Warning: Pickle file does not exist: {pickle_file_path}")
         return None
-    
+
     event_handler = PickleFileHandler()
     observer = Observer()
-    
+
     # ファイルのディレクトリを監視
     watch_directory = os.path.dirname(os.path.abspath(pickle_file_path))
     observer.schedule(event_handler, watch_directory, recursive=False)
-    
+
     observer.start()
     print(f"Started watching for changes in: {watch_directory}")
     return observer
@@ -80,11 +80,11 @@ def get_move_display(move, move_index):
 def make_board_at_move(history, move_index):
     """指定した手番までの盤面を作成（メモリ効率化）"""
     board = cshogi.Board()
-    
+
     # move_index が -1 の場合は初期局面を返す
     if move_index == -1:
         return board
-    
+
     for i, move in enumerate(history):
         if i > move_index:
             break
@@ -105,7 +105,7 @@ def index():
     initial_limit = 10
     total_boards = len(moves_list)
     display_boards = min(initial_limit, total_boards)
-    
+
     boards_data = []
     for i in range(display_boards):
         history = moves_list[i]
@@ -113,12 +113,12 @@ def index():
             # 初期局面の盤面を生成
             initial_board = cshogi.Board()
             board_svg = initial_board.to_svg()
-            
+
             # 全ての手順を表示用として保存
             move_preview = []
             for j, move in enumerate(history):
                 move_preview.append(get_move_display(move, j))
-            
+
             boards_data.append({
                 'index': i,
                 'board_index': i + 1,
@@ -127,9 +127,9 @@ def index():
                 'move_count': len(history),
                 'move_preview': move_preview
             })
-    
-    return render_template('index.html', 
-                         boards=boards_data, 
+
+    return render_template('index.html',
+                         boards=boards_data,
                          has_more_boards=total_boards > display_boards,
                          total_boards=total_boards,
                          loaded_boards=display_boards)
@@ -139,21 +139,21 @@ def get_board_state(board_index, move_index):
     """APIエンドポイント：指定した手番の盤面データを返す"""
     if board_index < 0 or board_index >= len(moves_list):
         return jsonify({'error': 'Board not found'}), 404
-    
+
     # move_indexを整数に変換
     try:
         move_index = int(move_index)
     except ValueError:
         return jsonify({'error': 'Invalid move index format'}), 400
-    
+
     history = moves_list[board_index]
-    
+
     if move_index < -1 or move_index >= len(history):
         return jsonify({'error': 'Invalid move index'}), 400
-    
+
     # 指定した手番までの盤面を作成
     board = cshogi.Board()
-    
+
     # move_index が -1 の場合は初期局面を返す
     if move_index != -1:
         for i in range(move_index + 1):
@@ -168,13 +168,13 @@ def get_board_state(board_index, move_index):
             except Exception as e:
                 print(f"Error pushing move {move}: {e}")
                 continue
-    
+
     sfen = board.sfen()
     svg = board.to_svg()
-    
+
     # 現在の手の表示
     current_move = "初期局面" if move_index == -1 else get_move_display(history[move_index], move_index)
-    
+
     return jsonify({
         'board_svg': svg,
         'sfen': sfen,
@@ -190,15 +190,15 @@ def get_boards_paginated():
     """盤面データをページネーションで取得するAPIエンドポイント"""
     offset = int(request.args.get('offset', 0))
     limit = int(request.args.get('limit', 10))
-    
+
     # 範囲チェック
     total_boards = len(moves_list)
     if offset >= total_boards:
         return jsonify({'boards': [], 'has_more': False, 'total': total_boards})
-    
+
     end_index = min(offset + limit, total_boards)
     boards_data = []
-    
+
     for i in range(offset, end_index):
         history = moves_list[i]
         if len(history) > 0:
@@ -213,7 +213,7 @@ def get_boards_paginated():
                                for j, mv in enumerate(history)],
                 'has_more_moves': False
             })
-    
+
     return jsonify({
         'boards': boards_data,
         'has_more': end_index < total_boards,
@@ -226,17 +226,17 @@ if __name__ == "__main__":
     args.add_argument('pickle_file')
     args.add_argument('--port', type=int, default=5000)
     args = args.parse_args()
-    
+
     # グローバル変数を設定
     pickle_file_path = os.path.abspath(args.pickle_file)
-    
+
     # 初回読み込み
     print(f"Initial loading of pickle file: {pickle_file_path}")
     load_pickle_file()
-    
+
     # ファイル監視を開始
     observer = setup_file_watcher()
-    
+
     try:
         print(f"Starting web server on http://localhost:{args.port}")
         app.run(host='0.0.0.0', port=args.port, debug=True, use_reloader=False)
