@@ -112,6 +112,7 @@ if __name__ == "__main__":
     args.add_argument('book')
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
+    args.add_argument('boards')
     args = args.parse_args()
 
     with open(args.book, "r") as f:
@@ -192,6 +193,10 @@ if __name__ == "__main__":
     sfens_list = []
     for _, key in move_count_list:
         sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
+        moves_list.append(dl_data_tree[key].board.history)
 
     with open(args.sfens, "w") as f:
         f.writelines(sfens_list)
+
+    with open(args.boards, "wb") as f:
+        pickle.dump(moves_list, f)
