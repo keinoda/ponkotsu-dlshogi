@@ -185,7 +185,7 @@ if __name__ == "__main__":
         pbar.update(1)
         count += 1
     pbar.close()
-    move_count_list = [(node.move_count, key) for node, key in zip(dl_data_tree.values(), dl_data_tree.keys()) if not node.child_move]
+    move_count_list = [(node.move_count, key) for node, key in zip(dl_data_tree.values(), dl_data_tree.keys()) if not node.child_move and node.move_count > 0]
     move_count_list.sort(reverse=True)
     move_count_list = move_count_list[:min(len(move_count_list), 1000)]
 
