@@ -175,11 +175,12 @@ if __name__ == "__main__":
         dl_data_tree[key] = Node()
         dl_data_tree[key].board = cshogi.Board(sfen=node.sfen)
         if node.legal_moves is not None:
-            dl_data_tree[key].child_move = node.legal_moves
-            dl_data_tree[key].child_move_count = np.zeros(len(node.legal_moves), dtype=np.float32)
-            # dl_data_tree[key].child_score = [None for i in range(len(node.legal_moves))]
-            dl_data_tree[key].child_score_sum = np.zeros(len(node.legal_moves), dtype=np.float32)
-            dl_data_tree[key].child_policy = softmax_temperature_with_normalization(node.policy_logits, 1.76)
+            if len(node.legal_moves) > 0:
+                dl_data_tree[key].child_move = node.legal_moves
+                dl_data_tree[key].child_move_count = np.zeros(len(node.legal_moves), dtype=np.float32)
+                # dl_data_tree[key].child_score = [None for i in range(len(node.legal_moves))]
+                dl_data_tree[key].child_score_sum = np.zeros(len(node.legal_moves), dtype=np.float32)
+                dl_data_tree[key].child_policy = softmax_temperature_with_normalization(node.policy_logits, 1.76)
         dl_data_tree[key].value = node.value
 
     first_board = cshogi.Board()
