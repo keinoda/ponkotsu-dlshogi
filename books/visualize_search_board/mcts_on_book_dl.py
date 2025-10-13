@@ -78,6 +78,14 @@ def search(node):
         else:
             # 連続王手の千日手で負けもしくは劣等局面
             return 0.0
+        
+    # 次の局面が定跡ツリーに登録されていなければ定跡ツリーに追加する
+    if next_board_key not in dl_data_tree:
+        dl_data_tree[next_board_key] = Node()
+        dl_data_tree[next_board_key].board = next_board.copy()
+        dl_data_tree[next_board_key].child_move = None
+        # 次の局面については未評価なので1-(現局面の評価値)で仮置きする
+        dl_data_tree[next_board_key].value = 1.0 - dl_data_tree[node.board.zobrist_hash()].value
 
     # 次の局面が末端ノードの場合定跡ツリーに登録されているか確認し、登録されていれば定跡ツリーの値で置き換える
     if not dl_data_tree[next_board_key].child_move:
