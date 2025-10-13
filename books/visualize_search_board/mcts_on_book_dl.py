@@ -112,7 +112,7 @@ if __name__ == "__main__":
     args.add_argument('book')
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
-    args.add_argument('boards')
+    args.add_argument('--boards', type=str, default='test.pickle')
     args = args.parse_args()
 
     with open(args.book, "r") as f:
