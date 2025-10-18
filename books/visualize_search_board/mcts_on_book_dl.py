@@ -189,8 +189,19 @@ if __name__ == "__main__":
     root_key = root_board.zobrist_hash()
     current_node = book_tree[root_key]
     current_key = root_key
+
+    val_sum_threshold = 0.9
     while True:
-        if len(current_node.child_move) < args.book_moves_threshold or current_key not in book_tree:
+        # policyの上位何手でval_sum_thresholdを超えるか確認する
+        child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
+        val_sum_threshold_count = 0
+        val_sum = 0.0
+        while val_sum < val_sum_threshold and val_sum_threshold_count < len(child_value_sorted):
+            val_sum += child_value_sorted[val_sum_threshold_count]
+            val_sum_threshold_count += 1
+
+        # val_sum_thresholdを超える手が閾値未満なら手を進める
+        if val_sum_threshold_count >= args.book_moves_threshold and len(current_node.child_move) < args.book_moves_threshold or current_key not in book_tree:
             print(len(current_node.child_move))
             break
         best_child_index = np.argmax(current_node.child_score)
