@@ -190,7 +190,7 @@ if __name__ == "__main__":
     current_node = book_tree[root_key]
     current_key = root_key
     while True:
-        if len(current_node.child_move) < args.book_moves_threshold:
+        if len(current_node.child_move) < args.book_moves_threshold or current_key not in book_tree:
             print(len(current_node.child_move))
             break
         best_child_index = np.argmax(current_node.child_score)
