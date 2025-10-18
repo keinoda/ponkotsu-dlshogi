@@ -121,6 +121,7 @@ if __name__ == "__main__":
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
     args.add_argument('--boards', type=str, default='test.pickle')
+    args.add_argument('--book_moves_threshold', type=int, default=4)
     args = args.parse_args()
 
     with open(args.book, "r") as f:
@@ -183,8 +184,25 @@ if __name__ == "__main__":
                 dl_data_tree[key].child_policy = softmax_temperature_with_normalization(node.policy_logits, 1.76)
         dl_data_tree[key].value = node.value
 
-    first_board = cshogi.Board()
-    first_board_key = first_board.zobrist_hash()
+    # ルート局面から定跡ツリー上で最善手を辿り、登録されている候補手が閾値を初めて下回った局面をfirst_boardとする
+    root_board = cshogi.Board()
+    root_key = root_board.zobrist_hash()
+    current_node = book_tree[root_key]
+    current_key = root_key
+    while True:
+        if len(current_node.child_move) < args.book_moves_threshold:
+            print(len(current_node.child_move))
+            break
+        best_child_index = np.argmax(current_node.child_score)
+        best_move = current_node.child_move[best_child_index]
+        next_board = current_node.board.copy()
+        next_board.push_usi(best_move)
+        next_board_key = next_board.zobrist_hash()
+        current_node = book_tree[next_board_key]
+        current_key = next_board_key
+
+    first_board = book_tree[next_board_key].board
+    first_board_key = current_key
 
     count = 0
     print("Starting search...")
