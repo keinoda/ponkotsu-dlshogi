@@ -190,7 +190,7 @@ if __name__ == "__main__":
     current_node = book_tree[root_key]
     current_key = root_key
 
-    val_sum_threshold = 0.9
+    val_sum_threshold = 0.95
     while True:
         # policyの上位何手でval_sum_thresholdを超えるか確認する
         child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
@@ -201,7 +201,7 @@ if __name__ == "__main__":
             val_sum_threshold_count += 1
 
         # val_sum_thresholdを超える手が閾値未満なら手を進める
-        if val_sum_threshold_count >= args.book_moves_threshold and len(current_node.child_move) < args.book_moves_threshold or current_key not in book_tree:
+        if val_sum_threshold_count >= args.book_moves_threshold and len(current_node.child_move) < args.book_moves_threshold:
             print(len(current_node.child_move))
             break
         best_child_index = np.argmax(current_node.child_score)
@@ -209,29 +209,35 @@ if __name__ == "__main__":
         next_board = current_node.board.copy()
         next_board.push_usi(best_move)
         next_board_key = next_board.zobrist_hash()
-        current_node = book_tree[next_board_key]
         current_key = next_board_key
+        if current_key not in book_tree:
+            break
+        current_node = book_tree[next_board_key]
 
-    first_board = book_tree[next_board_key].board
+    first_board = next_board
     first_board_key = current_key
 
-    count = 0
-    print("Starting search...")
-    pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
-    while count < 200000:
-        search(dl_data_tree[first_board_key])
-        pbar.update(1)
-        count += 1
-    pbar.close()
-    move_count_list = [(node.move_count, key) for node, key in zip(dl_data_tree.values(), dl_data_tree.keys()) if not node.child_move and node.move_count > 0]
-    move_count_list.sort(reverse=True)
-    move_count_list = move_count_list[:min(len(move_count_list), 1000)]
+    if first_board_key in dl_data_tree:
+        count = 0
+        print("Starting search...")
+        pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
+        while count < 200000:
+            search(dl_data_tree[first_board_key])
+            pbar.update(1)
+            count += 1
+        pbar.close()
+        move_count_list = [(node.move_count, key) for node, key in zip(dl_data_tree.values(), dl_data_tree.keys()) if not node.child_move and node.move_count > 0]
+        move_count_list.sort(reverse=True)
+        move_count_list = move_count_list[:min(len(move_count_list), 1000)]
 
-    moves_list = []
-    sfens_list = []
-    for _, key in move_count_list:
-        sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
-        moves_list.append(dl_data_tree[key].board.history)
+        moves_list = []
+        sfens_list = []
+        for _, key in move_count_list:
+            sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
+            moves_list.append(dl_data_tree[key].board.history)
+    else:
+        sfens_list = [f"sfen {first_board.sfen()}\n"]
+        moves_list = [first_board.history]
 
     with open(args.sfens, "w") as f:
         f.writelines(sfens_list)
