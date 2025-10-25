@@ -213,9 +213,11 @@ if __name__ == "__main__":
         if current_key not in book_tree:
             break
         current_node = book_tree[next_board_key]
+        current_node.board = next_board # history保持のためboardごとコピーする
 
     first_board = next_board
     first_board_key = current_key
+    print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
     if first_board_key in dl_data_tree:
         count = 0
