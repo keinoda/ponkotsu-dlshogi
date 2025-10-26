@@ -1,3 +1,5 @@
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 last=378
 
 # 変数設定
@@ -29,7 +31,7 @@ for ((i=$start; i<=$last; i++)); do
     jjj=$(printf "%03d" $(((i-1) % 53 + 300)))
     kkk=$(printf "%07d" $(((i-1) % 53 +115)))
     rrr=$(printf "%03d" $((i-1)))
-    src="${data_dir}/aoba_p1600-${iii} ${data_dir}/aoba_p3200-${iii} ${data_dir}/hao-${iii} ${data_dir}/tanuki_20240730-${iii} ${data_dir}/suisho5_nyugyoku-${iii}"
+    src="${data_dir}/aoba_p3200_2025-${iii} ${data_dir}/hao-${iii} ${data_dir}/tanuki_20240730-${iii} ${data_dir}/suisho5_nyugyoku-${iii}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 1 ]; then
@@ -49,7 +51,7 @@ for ((i=$start; i<=$last; i++)); do
     # 学習
     python -m dlshogi.train ${src} ${test_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network policy_value_network_pre_ln.PolicyValueNetwork --model ${model} -e 1\
-    --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix --use_amp --temperature 0 --lr 0.2\
+    --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2\
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_prior_${iii} --log ${log_dir}/train_log.txt
 
     # 学習結果をノート
