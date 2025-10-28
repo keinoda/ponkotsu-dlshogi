@@ -51,9 +51,13 @@ for ((i=$start; i<=$last; i++)); do
     echo epoch ${i} start
 
     # 学習
+    # python -m dlshogi.train ${src} ${test_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
+    #  ${resume} --checkpoint ${checkpoint} --network policy_value_network_pre_ln.PolicyValueNetwork --model ${model} -e 1\
+    # --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2\
+    # --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_prior_${iii} --log ${log_dir}/train_log.txt
     python -m dlshogi.train ${src} ${test_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-     ${resume} --checkpoint ${checkpoint} --network policy_value_network_pre_ln.PolicyValueNetwork --model ${model} -e 1\
-    --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2\
+     ${resume} --checkpoint ${checkpoint} --network resnet35x512_fcl512 --model ${model} -e 1\
+    --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2\
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_prior_${iii} --log ${log_dir}/train_log.txt
 
     # 学習結果をノート
