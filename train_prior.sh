@@ -65,7 +65,7 @@ for ((i=$start; i<=$last; i++)); do
     curl -XPOST -H 'Content-Type:application/json' -d "{\"i\":\"$(cat ../jiskey_access_token)\",\"localOnly\":true,\"visibility\":\"specified\",\"visibleUserIds\":[\"9gptzj80qf\"],\"text\":\"$text\"}" https://jiskey.dev/api/notes/create
     echo \n
 
-    
+
     if [ $? -ne 0 ]; then
         break
     fi
