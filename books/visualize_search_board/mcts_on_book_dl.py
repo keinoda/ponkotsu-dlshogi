@@ -182,7 +182,7 @@ if __name__ == "__main__":
     sfens_list = []
     moves_list = []
     for root_sfen in root_board_sfen_list:
-        root_board = cshogi.Board()
+        root_board = cshogi.Board(sfen=root_sfen)
         root_key = root_board.zobrist_hash()
         current_node = book_tree[root_key]
         current_key = root_key
