@@ -10,7 +10,7 @@ def eval_sfens(session, sfens, batch_size, out=None):
     x1 = np.empty((batch_size, FEATURES1_NUM, 9, 9), dtype=np.float32)
     x2 = np.empty((batch_size, FEATURES2_NUM, 9, 9), dtype=np.float32)
     # ダミー推論をして推論を速くする
-    eval(session, x1, x2)
+    # eval(session, x1, x2)
 
     if out is None:
         out = dict()
