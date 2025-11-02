@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
         # val_sum_thresholdを超える手が閾値未満なら手を進める
         if val_sum_threshold_count >= args.book_moves_threshold and len(current_node.child_move) < args.book_moves_threshold:
-            print(len(current_node.child_move))
+            print(f"Reached threshold at depth with {len(current_node.child_move)} moves")
             break
         best_child_index = np.argmax(current_node.child_score)
         best_move = current_node.child_move[best_child_index]
