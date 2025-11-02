@@ -52,11 +52,13 @@ class Node:
 
 # DLで推論したツリー上でPV-MCTSを行う
 # valueについては定跡ツリーに登録されていれば定跡ツリー上の値を優先する
+visited_nodes = set()
 def search(node):
     global depth0_count
     node.move_count += 1
 
     if not node.child_move:
+        visited_nodes.add(node.board.zobrist_hash())
         return node.value
 
     search_node = select_max_ucb_child(node)
@@ -229,7 +231,7 @@ if __name__ == "__main__":
             pbar.update(1)
             count += 1
         pbar.close()
-        move_count_list = [(node.move_count, key) for node, key in zip(dl_data_tree.values(), dl_data_tree.keys()) if not node.child_move and node.move_count > 0]
+        move_count_list = [(dl_data_tree[key].move_count, key) for key in visited_nodes]
         move_count_list.sort(reverse=True)
         move_count_list = move_count_list[:min(len(move_count_list), 1000)]
 
