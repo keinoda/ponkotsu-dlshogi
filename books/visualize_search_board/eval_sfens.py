@@ -20,7 +20,7 @@ def eval_sfens(session, sfens, batch_size, out=None):
         key = board.zobrist_hash()
         if key not in out:
             eval_board_list.append(board)
-        elif out[key].policy_logits is None:
+        elif out[key].child_policy is None:
             eval_board_list.append(board)
 
     for i in tqdm.tqdm(range(0, len(eval_board_list), batch_size)):
