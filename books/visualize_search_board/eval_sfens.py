@@ -45,10 +45,16 @@ if __name__ == "__main__":
     parser.add_argument("book")
     parser.add_argument("pickle")
     parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--tensorrt", action="store_true")
+    parser.add_argument("--device", type=str, choices=['cpu', 'cuda', 'tensorrt'], default='cpu')
     args = parser.parse_args()
 
-    session = onnxruntime.InferenceSession(args.model, providers=['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider'] if args.tensorrt else ['CUDAExecutionProvider', 'CPUExecutionProvider'])
+    if args.device == 'cpu':
+        providers = ['CPUExecutionProvider']
+    elif args.device == 'cuda':
+        providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+    else:  # tensorrt
+        providers = ['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider']
+    session = onnxruntime.InferenceSession(args.model, providers=providers)
     batch_size = args.batch_size
 
     out = None
