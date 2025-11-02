@@ -121,7 +121,7 @@ if __name__ == "__main__":
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
     args.add_argument('--boards', type=str, default='test.pickle')
-    args.add_argument('--book_moves_threshold', type=int, default=5)
+    args.add_argument('--book_moves_threshold', type=int, default=4)
     args = args.parse_args()
 
     with open(args.book, "r") as f:
