@@ -172,19 +172,7 @@ if __name__ == "__main__":
 
     # DLで評価したノードを読み込む
     with open(args.dl_pickle, "rb") as f:
-        dl_data = pickle.load(f)
-
-    for key, node in dl_data.items():
-        dl_data_tree[key] = Node()
-        dl_data_tree[key].board = cshogi.Board(sfen=node.sfen)
-        if node.legal_moves is not None:
-            if len(node.legal_moves) > 0:
-                dl_data_tree[key].child_move = node.legal_moves
-                dl_data_tree[key].child_move_count = np.zeros(len(node.legal_moves), dtype=np.float32)
-                # dl_data_tree[key].child_score = [None for i in range(len(node.legal_moves))]
-                dl_data_tree[key].child_score_sum = np.zeros(len(node.legal_moves), dtype=np.float32)
-                dl_data_tree[key].child_policy = softmax_temperature_with_normalization(node.policy_logits, 1.76)
-        dl_data_tree[key].value = node.value
+        dl_data_tree = pickle.load(f)
 
     # ルート局面から定跡ツリー上で最善手を辿り、登録されている候補手が閾値を初めて下回った局面をfirst_boardとする
     root_board = cshogi.Board()

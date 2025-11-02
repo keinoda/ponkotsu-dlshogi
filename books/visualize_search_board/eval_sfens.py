@@ -1,5 +1,6 @@
 import argparse
 from eval import *
+from mcts_on_book_dl import Node, softmax_temperature_with_normalization
 import os
 import pickle
 import tqdm
@@ -31,11 +32,13 @@ def eval_sfens(session, sfens, batch_size, out=None):
         policy_logits, values = eval(session, x1, x2)
         for j in range(batch_size):
             if i + j < len(eval_board_list):
-                node = EvalNode()
-                node.sfen = eval_board_list[i + j].sfen()
-                node.policy_logits = make_logits(eval_board_list[i + j], policy_logits[j])
+                node = Node()
+                node.board = eval_board_list[i + j].sfen()
+                node.child_move = list(eval_board_list[i + j].legal_moves)
+                node.child_move_count = np.zeros(len(node.child_move), dtype=np.float32)
+                node.child_score_sum = np.zeros(len(node.child_move), dtype=np.float32)
+                node.child_policy = softmax_temperature_with_normalization(policy_logits[j], 1.76)
                 node.value = values[j][0]
-                node.legal_moves = list(eval_board_list[i + j].legal_moves)
                 out[eval_board_list[i + j].zobrist_hash()] = node
     return out
 
