@@ -37,7 +37,8 @@ def eval_sfens(session, sfens, batch_size, out=None):
                 node.child_move = list(eval_board_list[i + j].legal_moves)
                 node.child_move_count = np.zeros(len(node.child_move), dtype=np.float32)
                 node.child_score_sum = np.zeros(len(node.child_move), dtype=np.float32)
-                node.child_policy = softmax_temperature_with_normalization(policy_logits[j], 1.76)
+                node.child_policy = make_logits(eval_board_list[i + j], policy_logits[j])
+                node.child_policy = softmax_temperature_with_normalization(node.child_policy, 1.76)
                 node.value = values[j][0]
                 out[eval_board_list[i + j].zobrist_hash()] = node
     return out
