@@ -214,10 +214,10 @@ if __name__ == "__main__":
 
         first_board = next_board
         first_board_key = current_key
-        dl_data_tree[first_board_key].board = first_board.copy()
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         if first_board_key in dl_data_tree:
+            dl_data_tree[first_board_key].board = first_board.copy()
             count = 0
             print("Starting search...")
             pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
