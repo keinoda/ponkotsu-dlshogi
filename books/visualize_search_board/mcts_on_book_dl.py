@@ -80,7 +80,7 @@ def search(node):
         else:
             # 連続王手の千日手で負けもしくは劣等局面
             return 0.0
-        
+
     # 次の局面が定跡ツリーに登録されていなければ定跡ツリーに追加する
     if next_board_key not in dl_data_tree:
         dl_data_tree[next_board_key] = Node()
