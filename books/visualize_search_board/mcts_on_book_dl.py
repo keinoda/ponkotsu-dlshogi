@@ -2,6 +2,7 @@ import argparse
 import cshogi
 from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR
 import numpy as np
+import os
 import pickle
 import tqdm
 
@@ -176,9 +177,12 @@ if __name__ == "__main__":
         dl_data_tree = pickle.load(f)
 
     # ルート局面から定跡ツリー上で最善手を辿り、登録されている候補手が閾値を初めて下回った局面をfirst_boardとする
-    with open(args.root_sfens, "r") as f:
-        root_board_sfen_list = f.readlines()
-        root_board_sfen_list = [s.replace("\n", "") for s in root_board_sfen_list]
+    if os.path.exists(args.root_sfens):
+        with open(args.root_sfens, "r") as f:
+            root_board_sfen_list = f.readlines()
+            root_board_sfen_list = [s.replace("\n", "") for s in root_board_sfen_list]
+    else:
+        root_board_sfen_list = ['']
 
     sfens_list = []
     moves_list = []
