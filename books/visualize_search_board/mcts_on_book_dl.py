@@ -123,6 +123,7 @@ if __name__ == "__main__":
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
     args.add_argument('--boards', type=str, default='test.pickle')
+    args.add_argument('--root_sfens', type=str, default='root_sfens.txt')
     args.add_argument('--book_moves_threshold', type=int, default=4)
     args = args.parse_args()
 
@@ -175,10 +176,10 @@ if __name__ == "__main__":
         dl_data_tree = pickle.load(f)
 
     # ルート局面から定跡ツリー上で最善手を辿り、登録されている候補手が閾値を初めて下回った局面をfirst_boardとする
-    root_board_sfen_list = [
-        '',
-        'lnsgkgsnl/1r5b1/p1ppppppp/1p7/7P1/9/PPPPPPP1P/1B5R1/LNSGKGSNL w - 4',
-    ]
+    with open(args.root_sfens, "r") as f:
+        root_board_sfen_list = f.readlines()
+        root_board_sfen_list = [s.replace("\n", "") for s in root_board_sfen_list]
+
     sfens_list = []
     moves_list = []
     for root_sfen in root_board_sfen_list:
