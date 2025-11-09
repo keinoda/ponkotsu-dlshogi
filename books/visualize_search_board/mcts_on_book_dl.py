@@ -208,6 +208,10 @@ if __name__ == "__main__":
             next_board_key = next_board.zobrist_hash()
             current_key = next_board_key
             if current_key not in book_tree:
+                # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
+                next_board.pop()
+                next_board_key = next_board.zobrist_hash()
+                current_key = next_board_key
                 break
             current_node = book_tree[next_board_key]
             current_node.board = next_board # history保持のためboardごとコピーする
