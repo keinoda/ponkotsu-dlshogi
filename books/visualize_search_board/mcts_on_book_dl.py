@@ -8,7 +8,7 @@ import tqdm
 
 c_puct = 0.1
 
-def score_to_value(score, a):
+def score_to_value(score, a=756.0864962951762):
     return 1.0 / (1.0 + np.exp(-score / a))
 
 def softmax_temperature_with_normalization(logits, temperature):
@@ -94,7 +94,7 @@ def search(node):
     if not dl_data_tree[next_board_key].child_move:
         if node.board.zobrist_hash() in book_tree and node.child_move[search_node] in book_tree[node.board.zobrist_hash()].child_move:
             index = book_tree[node.board.zobrist_hash()].child_move.index(node.child_move[search_node])
-            dl_data_tree[next_board_key].value = 1.0 - book_tree[node.board.zobrist_hash()].child_score[index]
+            dl_data_tree[next_board_key].value = 1.0 - score_to_value(book_tree[node.board.zobrist_hash()].child_score[index])
         depth0_count += 1
 
     next_node = dl_data_tree[next_board.zobrist_hash()]
@@ -134,8 +134,15 @@ if __name__ == "__main__":
 
     # 定跡をパースする
     board = cshogi.Board()
+    board_key = None
     for book in books:
         if book.startswith("sfen"):
+            # 直前までのbook_tree[board_key]のchile_move_count, child_score, child_score_sumをnumpy配列に変換する
+            if board_key is not None:
+                book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
+                book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
+                book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
+
             board.set_sfen(" ".join(book.split(" ")[1:]))
             board_key = board.zobrist_hash()
             book_tree[board_key] = Node()
@@ -144,9 +151,11 @@ if __name__ == "__main__":
             next_move_info = book.strip().split(" ")
             move_usi = next_move_info[0]
             book_tree[board_key].child_move.append(move_usi)
-            book_tree[board_key].child_move_count.append(0)
             book_tree[board_key].child_score.append(int(next_move_info[2]))
-            book_tree[board_key].child_score_sum.append(0)
+
+    book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
+    book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
+    book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
 
     # 反転が含まれていなければ追加する
     book_tree_rotated = dict()
@@ -158,19 +167,11 @@ if __name__ == "__main__":
             book_tree_rotated[rotated_board_key] = Node()
             book_tree_rotated[rotated_board_key].board = rotated_board.copy()
             book_tree_rotated[rotated_board_key].child_move = [cshogi.to_usi(cshogi.move_rotate(board.move_from_usi(move))).decode() for move in book_tree[key].child_move]
-            book_tree_rotated[rotated_board_key].child_move_count = [0 for i in range(len(book_tree[key].child_move))]
-            book_tree_rotated[rotated_board_key].child_score = [-score for score in book_tree[key].child_score]
-            book_tree_rotated[rotated_board_key].child_score_sum = [0 for i in range(len(book_tree[key].child_move))]
+            book_tree_rotated[rotated_board_key].child_move_count = np.zeros(len(book_tree[key].child_move))
+            book_tree_rotated[rotated_board_key].child_score = -book_tree[key].child_score
+            book_tree_rotated[rotated_board_key].child_score_sum = np.zeros(len(book_tree[key].child_move), dtype=np.float32)
 
     book_tree.update(book_tree_rotated)
-
-    a = 756.0864962951762
-    for key in book_tree.keys():
-        book_tree[key].child_move_count = np.array(book_tree[key].child_move_count)
-        book_tree[key].child_score = np.array(book_tree[key].child_score, dtype=np.float32)
-        book_tree[key].child_score_sum = np.array(book_tree[key].child_score_sum, dtype=np.float32)
-        book_tree[key].child_score = score_to_value(book_tree[key].child_score, a)
-        book_tree[key].child_policy = softmax_temperature_with_normalization(book_tree[key].child_score, 1.0)
 
     # DLで評価したノードを読み込む
     with open(args.dl_pickle, "rb") as f:
