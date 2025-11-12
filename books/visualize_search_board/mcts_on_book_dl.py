@@ -78,9 +78,12 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         if current_node.board.turn == turn:
             best_child_index = np.argmax(current_node.child_score)
         else:
-            search_moves_list = [index for index, score in enumerate(current_node.child_score) 
+            search_moves_list = [index for index, score in enumerate(current_node.child_score)
                                  if root_board_val - eval_diff <= score <= root_board_val]
-            best_child_index = random.choice(search_moves_list)
+            if len(search_moves_list) > 0:
+                best_child_index = random.choice(search_moves_list)
+            else:
+                best_child_index = 0
 
         best_move = current_node.child_move[best_child_index]
         next_board = current_node.board.copy()
@@ -95,6 +98,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
             break
         current_node = book_tree[next_board_key]
         current_node.board = next_board # history保持のためboardごとコピーする
+        root_board_val *= -1
 
     first_board = next_board
     first_board_key = current_key
@@ -173,7 +177,7 @@ if __name__ == "__main__":
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
     args.add_argument('--boards', type=str, default='test.pickle')
-    args.add_argument('--root_sfens', type=str, default='root_sfens.txt')
+    args.add_argument('--root_sfens', type=str)
     args.add_argument('--book_moves_threshold', type=int, default=4)
     args = args.parse_args()
 
@@ -227,10 +231,11 @@ if __name__ == "__main__":
         dl_data_tree = pickle.load(f)
 
     # ルート局面から定跡ツリー上で最善手を辿り、登録されている候補手が閾値を初めて下回った局面をfirst_boardとする
-    if os.path.exists(args.root_sfens):
+    if args.root_sfens and  os.path.exists(args.root_sfens):
         with open(args.root_sfens, "r") as f:
             root_board_sfen_list = f.readlines()
             root_board_sfen_list = [s.replace("\n", "") for s in root_board_sfen_list]
+        root_board_sfen_list.append('')
     else:
         root_board_sfen_list = ['']
 
@@ -248,8 +253,14 @@ if __name__ == "__main__":
             count += 1
         pbar.close()
 
-    while len(visited_nodes) > 1000 * 10:
-        first_board, first_board_key = select_root_board(eval_diff=30, book_moves_threshold=args.book_moves_threshold)
+    cnt = 0
+    while len(visited_nodes) < 1000 * 3:
+        cnt += 1
+        if cnt % 2 == 0:
+            turn = BLACK
+        else:
+            turn = WHITE
+        first_board, first_board_key = select_root_board(turn=turn, eval_diff=40, book_moves_threshold=args.book_moves_threshold)
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         dl_data_tree[first_board_key].board = first_board.copy()
@@ -262,6 +273,7 @@ if __name__ == "__main__":
             count += 1
         pbar.close()
 
+    print(f"visited_nodes: {len(visited_nodes)}")
     move_count_list = [(dl_data_tree[key].move_count, key) for key in visited_nodes]
     move_count_list.sort(reverse=True)
     move_count_list = move_count_list[:min(len(move_count_list), 1000)]
