@@ -75,7 +75,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
             print(f"Reached threshold at depth with {len(current_node.child_move)} moves")
             break
 
-        if current_node.board.turn == turn:
+        if current_node.board.turn == turn or eval_diff == 0:
             best_child_index = np.argmax(current_node.child_score)
         else:
             search_moves_list = [index for index, score in enumerate(current_node.child_score)
