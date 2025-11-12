@@ -1,9 +1,10 @@
 import argparse
 import cshogi
-from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR
+from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR, BLACK, WHITE
 import numpy as np
 import os
 import pickle
+import random
 import tqdm
 
 c_puct = 0.1
@@ -50,6 +51,54 @@ class Node:
         self.parent_move = None
         self.parent_move_count = 0
         self.parent_key = None
+
+def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
+    root_board = cshogi.Board(sfen=sfen)
+    root_key = root_board.zobrist_hash()
+    current_node = book_tree[root_key]
+    current_node.board = root_board.copy()
+    current_key = root_key
+    root_board_val = book_tree[root_key].child_score[0]
+
+    val_sum_threshold = 0.95
+    while True:
+        # policyの上位何手でval_sum_thresholdを超えるか確認する
+        child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
+        val_sum_threshold_count = 0
+        val_sum = 0.0
+        while val_sum < val_sum_threshold and val_sum_threshold_count < len(child_value_sorted):
+            val_sum += child_value_sorted[val_sum_threshold_count]
+            val_sum_threshold_count += 1
+
+        # val_sum_thresholdを超える手が閾値未満なら手を進める
+        if val_sum_threshold_count >= book_moves_threshold and len(current_node.child_move) < book_moves_threshold:
+            print(f"Reached threshold at depth with {len(current_node.child_move)} moves")
+            break
+
+        if current_node.board.turn == turn:
+            best_child_index = np.argmax(current_node.child_score)
+        else:
+            search_moves_list = [index for index, score in enumerate(current_node.child_score) 
+                                 if root_board_val - eval_diff <= score <= root_board_val]
+            best_child_index = random.choice(search_moves_list)
+
+        best_move = current_node.child_move[best_child_index]
+        next_board = current_node.board.copy()
+        next_board.push_usi(best_move)
+        next_board_key = next_board.zobrist_hash()
+        current_key = next_board_key
+        if current_key not in book_tree:
+            # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
+            next_board.pop()
+            next_board_key = next_board.zobrist_hash()
+            current_key = next_board_key
+            break
+        current_node = book_tree[next_board_key]
+        current_node.board = next_board # history保持のためboardごとコピーする
+
+    first_board = next_board
+    first_board_key = current_key
+    return first_board, first_board_key
 
 # DLで推論したツリー上でPV-MCTSを行う
 # valueについては定跡ツリーに登録されていれば定跡ツリー上の値を優先する
@@ -185,64 +234,40 @@ if __name__ == "__main__":
     else:
         root_board_sfen_list = ['']
 
-    sfens_list = []
-    moves_list = []
     for root_sfen in root_board_sfen_list:
-        root_board = cshogi.Board(sfen=root_sfen)
-        root_key = root_board.zobrist_hash()
-        current_node = book_tree[root_key]
-        current_key = root_key
-
-        val_sum_threshold = 0.95
-        while True:
-            # policyの上位何手でval_sum_thresholdを超えるか確認する
-            child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
-            val_sum_threshold_count = 0
-            val_sum = 0.0
-            while val_sum < val_sum_threshold and val_sum_threshold_count < len(child_value_sorted):
-                val_sum += child_value_sorted[val_sum_threshold_count]
-                val_sum_threshold_count += 1
-
-            # val_sum_thresholdを超える手が閾値未満なら手を進める
-            if val_sum_threshold_count >= args.book_moves_threshold and len(current_node.child_move) < args.book_moves_threshold:
-                print(f"Reached threshold at depth with {len(current_node.child_move)} moves")
-                break
-            best_child_index = np.argmax(current_node.child_score)
-            best_move = current_node.child_move[best_child_index]
-            next_board = current_node.board.copy()
-            next_board.push_usi(best_move)
-            next_board_key = next_board.zobrist_hash()
-            current_key = next_board_key
-            if current_key not in book_tree:
-                # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
-                next_board.pop()
-                next_board_key = next_board.zobrist_hash()
-                current_key = next_board_key
-                break
-            current_node = book_tree[next_board_key]
-            current_node.board = next_board # history保持のためboardごとコピーする
-
-        first_board = next_board
-        first_board_key = current_key
+        first_board, first_board_key = select_root_board(sfen=root_sfen, book_moves_threshold=args.book_moves_threshold)
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
-        if first_board_key in dl_data_tree:
-            dl_data_tree[first_board_key].board = first_board.copy()
-            count = 0
-            print("Starting search...")
-            pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
-            while count < 200000:
-                search(dl_data_tree[first_board_key])
-                pbar.update(1)
-                count += 1
-            pbar.close()
-        else:
-            sfens_list.append(f"sfen {first_board.sfen()}\n")
-            moves_list.append(first_board.history)
+        dl_data_tree[first_board_key].board = first_board.copy()
+        count = 0
+        print("Starting search...")
+        pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
+        while count < 200000:
+            search(dl_data_tree[first_board_key])
+            pbar.update(1)
+            count += 1
+        pbar.close()
+
+    while len(visited_nodes) > 1000 * 10:
+        first_board, first_board_key = select_root_board(eval_diff=30, book_moves_threshold=args.book_moves_threshold)
+        print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
+
+        dl_data_tree[first_board_key].board = first_board.copy()
+        count = 0
+        print("Starting search...")
+        pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
+        while count < 200000:
+            search(dl_data_tree[first_board_key])
+            pbar.update(1)
+            count += 1
+        pbar.close()
 
     move_count_list = [(dl_data_tree[key].move_count, key) for key in visited_nodes]
     move_count_list.sort(reverse=True)
     move_count_list = move_count_list[:min(len(move_count_list), 1000)]
+
+    sfens_list = []
+    moves_list = []
     for _, key in move_count_list:
         sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
         moves_list.append(dl_data_tree[key].board.history)
