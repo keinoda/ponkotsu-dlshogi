@@ -3,10 +3,10 @@ name: Build and Publish Docker Image to GHCR
 on:
   push:
     branches:
-      - wcsc35
+      - wcsc36
   pull_request:
     branches:
-      - wcsc35
+      - wcsc36
 
 jobs:
   build-and-push:
