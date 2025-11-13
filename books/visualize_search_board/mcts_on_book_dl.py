@@ -179,6 +179,7 @@ if __name__ == "__main__":
     args.add_argument('--boards', type=str, default='test.pickle')
     args.add_argument('--root_sfens', type=str)
     args.add_argument('--book_moves_threshold', type=int, default=4)
+    args.add_argument('--eval_diff', type=int, default=30)
     args = args.parse_args()
 
     with open(args.book, "r") as f:
@@ -260,7 +261,7 @@ if __name__ == "__main__":
             turn = BLACK
         else:
             turn = WHITE
-        first_board, first_board_key = select_root_board(turn=turn, eval_diff=40, book_moves_threshold=args.book_moves_threshold)
+        first_board, first_board_key = select_root_board(turn=turn, eval_diff=args.eval_diff, book_moves_threshold=args.book_moves_threshold)
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         dl_data_tree[first_board_key].board = first_board.copy()
