@@ -61,6 +61,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
     root_board_val = book_tree[root_key].child_score[0]
 
     val_sum_threshold = 0.95
+    next_board = current_node.board.copy()
     while True:
         # policyの上位何手でval_sum_thresholdを超えるか確認する
         child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
