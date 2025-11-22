@@ -13,6 +13,7 @@ log_dir="${save_dir}/${name}"
 data_dir=$3
 test_dir=$4
 cache_dir=$5
+compare_log_dir=$6
 
 if [ ! -d ${model_dir} ]; then
     mkdir -p ${model_dir}
@@ -60,10 +61,43 @@ for ((i=$start; i<=$last; i++)); do
     --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2\
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_prior_${iii} --log ${log_dir}/train_log.txt
 
+    # ログのプロット
+    python log_plot.py ${compare_log_dir}/train_log.txt ${log_dir}/train_log.txt
+
+    # プロット結果をアップロード
+    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+        --request POST \
+        --header 'Content-Type: multipart/form-data' \
+        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --form 'isSensitive=false' \
+        --form 'force=false' \
+        -F "file=@./loss_per_epoch.png")
+
+    id_loss_per_epoch=$(echo $response | jq -r '.id')
+
+    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+        --request POST \
+        --header 'Content-Type: multipart/form-data' \
+        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --form 'isSensitive=false' \
+        --form 'force=false' \
+        -F "file=@./accuracy_per_epoch.png")
+
+    id_accuracy_per_epoch=$(echo $response | jq -r '.id')
+
     # 学習結果をノート
     text="$name\n"$(cat ${log_dir}/train_log.txt | grep "epoch = $i,"| tail -n 1 | cut -f 3)
-    curl -XPOST -H 'Content-Type:application/json' -d "{\"i\":\"$(cat ../jiskey_access_token)\",\"localOnly\":true,\"visibility\":\"specified\",\"visibleUserIds\":[\"9gptzj80qf\"],\"text\":\"$text\"}" https://jiskey.dev/api/notes/create
-    echo \n
+    curl -s -o /dev/null https://jiskey.dev/api/notes/create \
+        --request POST \
+        --header 'Content-Type: application/json' \
+        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --data '{
+            "localOnly": true,
+            "visibility": "specified",
+            "visibleUserIds": ["9gptzj80qf"],
+            "text": "'"$text"'",
+            "fileIds": ["'"$id_loss_per_epoch"'", "'"$id_accuracy_per_epoch"'"]
+        }'
 
 
     if [ $? -ne 0 ]; then
