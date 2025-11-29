@@ -77,7 +77,8 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
             break
 
         if current_node.board.turn == turn or eval_diff == 0:
-            best_child_index = np.argmax(current_node.child_score)
+            # ペタショック化された定跡はソート済みなので必ず先頭がbestmoveになっている
+            best_child_index = 0
         else:
             search_moves_list = [index for index, score in enumerate(current_node.child_score)
                                  if root_board_val - eval_diff <= score <= root_board_val]
