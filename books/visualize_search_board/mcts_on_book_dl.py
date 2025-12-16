@@ -179,7 +179,7 @@ if __name__ == "__main__":
     args.add_argument('dl_pickle')
     args.add_argument('sfens')
     args.add_argument('--boards', type=str)
-    args.add_argument('--root_sfens', type=str)
+    args.add_argument('--root_sfens', type=str, nargs='*', default=[])
     args.add_argument('--book_moves_threshold', type=int, default=4)
     args.add_argument('--eval_diff', type=int, default=30)
     args = args.parse_args()
@@ -234,16 +234,15 @@ if __name__ == "__main__":
         dl_data_tree = pickle.load(f)
 
     # ルート局面から定跡ツリー上で最善手を辿り、登録されている候補手が閾値を初めて下回った局面をfirst_boardとする
-    if args.root_sfens and  os.path.exists(args.root_sfens):
-        with open(args.root_sfens, "r") as f:
-            root_board_sfen_list = f.readlines()
-            root_board_sfen_list = [s.replace("\n", "") for s in root_board_sfen_list]
-        root_board_sfen_list.append('')
-    else:
-        root_board_sfen_list = ['']
+    root_board_sfen_list = ['']
+    for root_sfens in args.root_sfens:
+        if os.path.exists(root_sfens):
+            with open(root_sfens, "r") as f:
+                root_board_sfen_list += [s.replace("\n", "") for s in f.readlines()]
 
     for root_sfen in root_board_sfen_list:
         first_board, first_board_key = select_root_board(sfen=root_sfen, book_moves_threshold=args.book_moves_threshold)
+        print(f"Root sfen: {root_sfen}")
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         dl_data_tree[first_board_key].board = first_board.copy()
