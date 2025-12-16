@@ -1,4 +1,8 @@
+import argparse
 import cshogi
+import glob
+import os
+
 from cshogi import CSA
 
 class Node:
@@ -56,28 +60,42 @@ def parse_book(book_path):
     book_tree.update(book_tree_rotated)
     return book_tree
 
-book_path = "/home/jj1guj/Downloads/test_book_petashock.db"
-csa_path = "/home/jj1guj/ponkotsu_wcsc33/books/visualize_search_board/test_csa/wdoor+floodgate-300-10F+taiyo_unajyu-f+ponkotsu-wcsc35_202512book_mini+20251209163001.csa"
+if __name__ == "__main__":
+    args = argparse.ArgumentParser()
+    args.add_argument("book_path", type=str)
+    args.add_argument("csa_dir", type=str)
+    args.add_argument("sfens_path", type=str)
+    args = args.parse_args()
+    book_path = args.book_path
 
-book_tree = parse_book(book_path)
+    csa_path_list = glob.glob(os.path.join(args.csa_dir, "*.csa"))
+    root_search_sfens = []
 
-parser = CSA.Parser()
-parser.parse_csa_file(csa_path)
-print(parser.sfen)
-print(parser.moves)
-moves_usi = [cshogi.move_to_usi(move) for move in parser.moves]
-print(moves_usi)
+    for csa_path in csa_path_list:
+        book_tree = parse_book(book_path)
 
-board = cshogi.Board(sfen=parser.sfen)
-board_key = board.zobrist_hash()
-score_now = book_tree[board_key].child_score[0]
-depth_now = book_tree[board_key].child_depth[0]
+        parser = CSA.Parser()
+        parser.parse_csa_file(csa_path)
+        moves_usi = [cshogi.move_to_usi(move) for move in parser.moves]
 
-# for move in parser.moves:
-#     board.push(move)
-#     board_key = board.zobrist_hash()
-#     if board_key in book_tree:
+        board = cshogi.Board(sfen=parser.sfen)
+        board_key = board.zobrist_hash()
+        score_now = book_tree[board_key].child_score[0]
+        depth_now = book_tree[board_key].child_depth[0]
+        move_now = book_tree[board_key].child_move[0]
 
+        for move in parser.moves:
+            board.push(move)
+            board_key = board.zobrist_hash()
+            score_now *= -1
+            depth_now -= 1
+            if board_key in book_tree:
+                score_next = book_tree[board_key].child_score[0]
+                depth_next = book_tree[board_key].child_depth[0]
+                if score_now != score_next or depth_now != depth_next:
+                    score_now = score_next
+                    depth_now = depth_next
+                    root_search_sfens.append(board.sfen())
 
-print(board.history)
-print(board)
+    with open(args.sfens_path, "w") as f:
+        f.write("\n".join(root_search_sfens))
