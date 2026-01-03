@@ -242,6 +242,8 @@ if __name__ == "__main__":
                 root_board_sfen_list += [s.replace("\n", "") for s in f.readlines()]
 
     first_board_sfen_list = []
+    bestmove_board_sfen_list = []
+    playout_num = 200000
     for root_sfen in root_board_sfen_list:
         first_board, first_board_key = select_root_board(sfen=root_sfen, book_moves_threshold=args.book_moves_threshold)
         first_board_sfen_list.append(f"{first_board.sfen()}\n")
@@ -249,10 +251,17 @@ if __name__ == "__main__":
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         dl_data_tree[first_board_key].board = first_board.copy()
+
+        # 探索開始局面における最善手の局面を探索対象局面に含める
+        bestmove_board = first_board.copy()
+        bestmove_board.push_usi(dl_data_tree[first_board_key].child_move[0])
+        if bestmove_board.zobrist_hash() not in dl_data_tree:
+            bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
+
         count = 0
         print("Starting search...")
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
-        while count < 200000:
+        while count < playout_num:
             search(dl_data_tree[first_board_key])
             pbar.update(1)
             count += 1
@@ -270,10 +279,17 @@ if __name__ == "__main__":
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         dl_data_tree[first_board_key].board = first_board.copy()
+
+        # 探索開始局面における最善手の局面を探索対象局面に含める
+        bestmove_board = first_board.copy()
+        bestmove_board.push_usi(dl_data_tree[first_board_key].child_move[0])
+        if bestmove_board.zobrist_hash() not in dl_data_tree:
+            bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
+
         count = 0
         print("Starting search...")
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
-        while count < 200000:
+        while count < playout_num:
             search(dl_data_tree[first_board_key])
             pbar.update(1)
             count += 1
@@ -291,6 +307,7 @@ if __name__ == "__main__":
         if args.boards and os.path.exists(args.boards):
             moves_list.append(dl_data_tree[key].board.history)
 
+    sfens_list += bestmove_board_sfen_list
     with open(args.sfens, "w") as f:
         f.writelines(sfens_list)
 
