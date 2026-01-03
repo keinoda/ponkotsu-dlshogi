@@ -182,6 +182,7 @@ if __name__ == "__main__":
     args.add_argument('--root_sfens', type=str, nargs='*', default=[])
     args.add_argument('--book_moves_threshold', type=int, default=4)
     args.add_argument('--eval_diff', type=int, default=30)
+    args.add_argument('--first_board_sfen_output', type=str, default='first_board_sfens.txt')
     args = args.parse_args()
 
     with open(args.book, "r") as f:
@@ -240,8 +241,10 @@ if __name__ == "__main__":
             with open(root_sfens, "r") as f:
                 root_board_sfen_list += [s.replace("\n", "") for s in f.readlines()]
 
+    first_board_sfen_list = []
     for root_sfen in root_board_sfen_list:
         first_board, first_board_key = select_root_board(sfen=root_sfen, book_moves_threshold=args.book_moves_threshold)
+        first_board_sfen_list.append(f"{first_board.sfen()}\n")
         print(f"Root sfen: {root_sfen}")
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
@@ -263,6 +266,7 @@ if __name__ == "__main__":
         else:
             turn = WHITE
         first_board, first_board_key = select_root_board(turn=turn, eval_diff=args.eval_diff, book_moves_threshold=args.book_moves_threshold)
+        first_board_sfen_list.append(f"{first_board.sfen()}\n")
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         dl_data_tree[first_board_key].board = first_board.copy()
@@ -289,6 +293,9 @@ if __name__ == "__main__":
 
     with open(args.sfens, "w") as f:
         f.writelines(sfens_list)
+
+    with open(args.first_board_sfen_output, "w") as f:
+        f.writelines(first_board_sfen_list)
 
     if args.boards and os.path.exists(args.boards):
         with open(args.boards, "wb") as f:
