@@ -254,8 +254,8 @@ if __name__ == "__main__":
 
         # 探索開始局面における最善手の局面を探索対象局面に含める
         bestmove_board = first_board.copy()
-        bestmove_board.push_usi(dl_data_tree[first_board_key].child_move[0])
-        if bestmove_board.zobrist_hash() not in dl_data_tree:
+        bestmove_board.push_usi(book_tree[first_board_key].child_move[0])
+        if bestmove_board.zobrist_hash() not in book_tree:
             bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
 
         count = 0
@@ -282,8 +282,8 @@ if __name__ == "__main__":
 
         # 探索開始局面における最善手の局面を探索対象局面に含める
         bestmove_board = first_board.copy()
-        bestmove_board.push_usi(dl_data_tree[first_board_key].child_move[0])
-        if bestmove_board.zobrist_hash() not in dl_data_tree:
+        bestmove_board.push_usi(book_tree[first_board_key].child_move[0])
+        if bestmove_board.zobrist_hash() not in book_tree:
             bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
 
         count = 0
