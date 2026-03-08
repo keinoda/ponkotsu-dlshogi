@@ -56,7 +56,7 @@ for ((i=$start; i<=$last; i++)); do
 
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-     ${resume} --checkpoint ${checkpoint} --network policy_value_network_pre_ln.PolicyValueNetwork --model ${model} -e 1\
+     ${resume} --checkpoint ${checkpoint} --network resnet35x512_fcl512 --model ${model} -e 1\
     --use_average --use_evalfix ${use_swa} --use_amp --amp_dtype bfloat16 --temperature 0 --lr 1e-4\
     --lr_scheduler dlshogi.lr_scheduler.CosineLRScheduler'('t_initial=271220,lr_min=1e-6,cycle_mul=2,cycle_limit=3,cycle_decay=0.8,warmup_t=67805,warmup_lr_init=1e-6,warmup_prefix=True')'\
      ${reset} --scheduler_step_mode step --cache ${cache_dir}/train_cache_${kkk} --log ${log_dir}/train_log.txt
