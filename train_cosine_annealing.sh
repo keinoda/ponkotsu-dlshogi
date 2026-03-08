@@ -24,8 +24,8 @@ fi
 for ((i=$start; i<=$last; i++)); do
     iii=$(printf "%03d" $i)
     jjj=$(printf "%03d" $((i-1)))
-    kkk=$(printf "%03d" $(((i-1) % 24 +1)))
-    src="${data_dir}/floodgate_2019-20260304-${iii} ${data_dir}/Suisho10Mn-${iii} ${data_dir}/dlshogi_with_gct-${iii}.hcpe ${data_dir}/suisho11alpha-20251006-${iii}"
+    kkk=$(printf "%03d" $(((i-300) % 24 +1)))
+    src="${data_dir}/floodgate_2019-20260304-${kkk} ${data_dir}/Suisho10Mn-${kkk} ${data_dir}/dlshogi_with_gct-${kkk}.hcpe ${data_dir}/suisho11alpha-20251006-${kkk}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
     if [ $i -eq 300 ]; then
