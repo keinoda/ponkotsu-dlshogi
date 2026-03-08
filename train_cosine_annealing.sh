@@ -1,4 +1,4 @@
-last=600
+last=370
 
 # 変数設定
 save_dir=$1
@@ -17,7 +17,7 @@ for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do c
 if [ -v chkp ];then
     start=$(expr ${chkp: -7:3} + 1)
 else
-    start=344
+    start=300
 fi
 
 for ((i=$start; i<=$last; i++)); do
@@ -27,8 +27,8 @@ for ((i=$start; i<=$last; i++)); do
     src="${data_dir}/floodgate_2019-20260304-${iii} ${data_dir}/Suisho10Mn-${iii} ${data_dir}/dlshogi_with_gct-${iii}.hcpe ${data_dir}/suisho11alpha-20251006-${iii}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
-    if [ $i -eq 344 ]; then
-        resume="-r ${checkpoint_dir}/checkpoint_resnet30x256_pre_ln_prior-343.pth"
+    if [ $i -eq 300 ]; then
+        resume="-r ${checkpoint_dir}/checkpoint_resnet35x512_prior-299.pth"
     else
         resume="-r ${checkpoint_dir}/checkpoint_${name}-${jjj}.pth"
     fi
@@ -41,7 +41,7 @@ for ((i=$start; i<=$last; i++)); do
 
     echo epoch ${i} start
 
-    if [ $i -eq 344 ]; then
+    if [ $i -eq 300 ]; then
         reset="--reset_scheduler --reset_optimizer"
     else
         reset=""
@@ -56,14 +56,47 @@ for ((i=$start; i<=$last; i++)); do
     # 学習
     python -m dlshogi.train ${src} ${data_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network policy_value_network_pre_ln.PolicyValueNetwork --model ${model} -e 1\
-    --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix ${use_swa} --use_amp --amp_dtype bfloat16 --temperature 0 --lr 1e-4\
+    --use_average --use_evalfix ${use_swa} --use_amp --amp_dtype bfloat16 --temperature 0 --lr 1e-4\
     --lr_scheduler dlshogi.lr_scheduler.CosineLRScheduler'('t_initial=271220,lr_min=1e-6,cycle_mul=2,cycle_limit=3,cycle_decay=0.8,warmup_t=67805,warmup_lr_init=1e-6,warmup_prefix=True')'\
      ${reset} --scheduler_step_mode step --cache ${cache_dir}/train_cache_${kkk} --log ${log_dir}/train_log.txt
 
+    # ログのプロット
+    python log_plot.py ${compare_log_dir}/train_log.txt ${log_dir}/train_log.txt
+
+    # プロット結果をアップロード
+    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+        --request POST \
+        --header 'Content-Type: multipart/form-data' \
+        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --form 'isSensitive=false' \
+        --form 'force=false' \
+        -F "file=@./loss_per_epoch.png")
+
+    id_loss_per_epoch=$(echo $response | jq -r '.id')
+
+    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+        --request POST \
+        --header 'Content-Type: multipart/form-data' \
+        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --form 'isSensitive=false' \
+        --form 'force=false' \
+        -F "file=@./accuracy_per_epoch.png")
+
+    id_accuracy_per_epoch=$(echo $response | jq -r '.id')
+
     # 学習結果をノート
     text="$name\n"$(cat ${log_dir}/train_log.txt | grep "epoch = $i,"| tail -n 1 | cut -f 3)
-    curl -XPOST -H 'Content-Type:application/json' -d "{\"i\":\"$(cat ../jiskey_access_token)\",\"localOnly\":true,\"visibility\":\"specified\",\"visibleUserIds\":[\"9gptzj80qf\"],\"text\":\"$text\"}" https://jiskey.dev/api/notes/create
-    echo \n
+    curl -s -o /dev/null https://jiskey.dev/api/notes/create \
+        --request POST \
+        --header 'Content-Type: application/json' \
+        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --data '{
+            "localOnly": true,
+            "visibility": "specified",
+            "visibleUserIds": ["9gptzj80qf"],
+            "text": "'"$text"'",
+            "fileIds": ["'"$id_loss_per_epoch"'", "'"$id_accuracy_per_epoch"'"]
+        }'
 
     if [ $? -ne 0 ]; then
         break
