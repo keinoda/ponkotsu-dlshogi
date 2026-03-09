@@ -48,7 +48,7 @@ for ((i=$start; i<=$last; i++)); do
         reset=""
     fi
 
-    if [ $i -ge 400 ]; then
+    if [ $i -ge 350 ]; then
         use_swa="--use_swa"
     else
         use_swa=""
