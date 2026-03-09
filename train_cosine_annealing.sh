@@ -10,6 +10,7 @@ log_dir="${save_dir}/${name}"
 data_dir=$3
 test_dir=$4
 cache_dir=$5
+compare_log_dir=$6
 
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
