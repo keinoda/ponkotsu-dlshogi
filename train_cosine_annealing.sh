@@ -1,8 +1,6 @@
 #!/bin/bash
 last=370
 
-# a
-
 # 変数設定
 save_dir=$1
 name=$2
