@@ -19,18 +19,23 @@ for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do c
 if [ -v chkp ];then
     start=$(expr ${chkp: -7:3} + 1)
 else
-    start=300
+    start=326
 fi
 
 for ((i=$start; i<=$last; i++)); do
     iii=$(printf "%03d" $i)
     jjj=$(printf "%03d" $((i-1)))
     kkk=$(printf "%03d" $(((i-300) % 24 +1)))
-    src="${data_dir}/floodgate_2019-20260304-${kkk} ${data_dir}/Suisho10Mn-${kkk} ${data_dir}/dlshogi_with_gct-${kkk}.hcpe ${data_dir}/suisho11alpha-20251006-${kkk}"
+    src="${data_dir}/floodgate_2019-20260304-${kkk} \
+        ${data_dir}/Suisho10Mn-${kkk} \
+        ${data_dir}/dlshogi_with_gct-${kkk}.hcpe \
+        ${data_dir}/suisho11alpha-20251006-${kkk} \
+        ${data_dir}/suisho11b_50000-${kkk} \
+        ${data_dir}/selfplay_ponkotsu_wcsc35_filtered-${kkk}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
-    if [ $i -eq 300 ]; then
-        resume="-r ${checkpoint_dir}/checkpoint_resnet35x512_prior-299.pth"
+    if [ $i -eq 326 ]; then
+        resume="-r ${checkpoint_dir}/checkpoint_resnet35x512_cos_anealing-325.pth"
     else
         resume="-r ${checkpoint_dir}/checkpoint_${name}-${jjj}.pth"
     fi
@@ -60,7 +65,7 @@ for ((i=$start; i<=$last; i++)); do
      ${resume} --checkpoint ${checkpoint} --network resnet35x512_fcl512 --model ${model} -e 1\
     --use_average --use_evalfix ${use_swa} --use_amp --amp_dtype bfloat16 --temperature 0 --lr 1e-4\
     --lr_scheduler dlshogi.lr_scheduler.CosineLRScheduler'('t_initial=271220,lr_min=1e-6,cycle_mul=2,cycle_limit=3,cycle_decay=0.8,warmup_t=67805,warmup_lr_init=1e-6,warmup_prefix=True')'\
-     ${reset} --scheduler_step_mode step --cache ${cache_dir}/train_cache_${kkk} --log ${log_dir}/train_log.txt
+     ${reset} --scheduler_step_mode step --cache ${cache_dir}/train_cache_additional_${kkk} --log ${log_dir}/train_log.txt
 
     # ログのプロット
     python log_plot.py ${compare_log_dir}/train_log.txt ${log_dir}/train_log.txt
