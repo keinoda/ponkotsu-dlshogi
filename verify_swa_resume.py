@@ -39,6 +39,11 @@ def main():
         action="store_true",
         help="Apply fix by moving swa_model to target device after model.to(device)",
     )
+    parser.add_argument(
+        "--fail_fast_on_device_mismatch",
+        action="store_true",
+        help="Stop immediately when swa_model/device mismatch is detected",
+    )
     parser.add_argument("--use_amp", action="store_true")
     parser.add_argument(
         "--amp_dtype",
@@ -90,7 +95,11 @@ def main():
     parameter = next(swa_model.parameters())
     print(f"swa param device={parameter.device}, dtype={parameter.dtype}")
     print(f"target device={device}")
-    assert parameter.device == device, f"swa_model is on {parameter.device}, expected {device}"
+    if parameter.device != device:
+        message = f"swa_model is on {parameter.device}, expected {device}"
+        if args.fail_fast_on_device_mismatch:
+            raise AssertionError(message)
+        print(f"WARN: {message}; continuing to reproduce update_bn runtime error")
 
     amp_dtype = torch.bfloat16 if args.amp_dtype == "bfloat16" else torch.float16
     forward_ = swa_model.forward
