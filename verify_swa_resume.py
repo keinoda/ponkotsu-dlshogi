@@ -34,6 +34,11 @@ def main():
         action="store_true",
         help="If checkpoint has no swa_model, use model weights as SWA fallback",
     )
+    parser.add_argument(
+        "--apply_swa_device_fix",
+        action="store_true",
+        help="Apply fix by moving swa_model to target device after model.to(device)",
+    )
     parser.add_argument("--use_amp", action="store_true")
     parser.add_argument(
         "--amp_dtype",
@@ -53,16 +58,23 @@ def main():
         device_type_str = "cpu"
 
     print(f"network={network}")
+
+    # Emulate dlshogi resume order:
+    # model is created on CPU, swa_model is cloned from that CPU model,
+    # then only model is moved to CUDA unless the fix is applied.
     model = policy_value_network(network)
     model.cpu()
+    swa_model = AveragedModel(model)
 
     checkpoint = torch.load(args.resume, map_location="cpu", weights_only=True)
     model.load_state_dict(checkpoint["model"])
     model.to(device)
 
-    # Initialize from current model weights so fallback path is deterministic.
-    swa_model = AveragedModel(model)
-    swa_model.to(device)
+    if args.apply_swa_device_fix:
+        swa_model.to(device)
+        print("mode=patched")
+    else:
+        print("mode=unpatched")
 
     if "swa_model" not in checkpoint:
         if not args.allow_missing_swa_model:
@@ -71,7 +83,7 @@ def main():
                 "Use a checkpoint created with --use_swa (typically epoch >= SWA start), "
                 "or run with --allow_missing_swa_model to fall back to model weights."
             )
-        print("WARN: checkpoint has no swa_model; using model weights as fallback")
+        print("WARN: checkpoint has no swa_model; using initial AveragedModel weights")
     else:
         swa_model.load_state_dict(checkpoint["swa_model"])
 
