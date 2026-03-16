@@ -17,7 +17,15 @@ def synthetic_loader(batchsize, device, batches):
 def main():
     parser = argparse.ArgumentParser(description="Verify SWA resume/update_bn path")
     parser.add_argument("--resume", required=True, help="checkpoint path")
-    parser.add_argument("--network", required=True, help="network type used for the checkpoint")
+    parser.add_argument(
+        "--network",
+        help="dlshogi network name (e.g. resnet35x512_fcl512)",
+    )
+    parser.add_argument(
+        "network_name",
+        nargs="?",
+        help="dlshogi network name as positional arg (e.g. resnet35x512_fcl512)",
+    )
     parser.add_argument("--gpu", type=int, default=0, help="GPU ID, use -1 for CPU")
     parser.add_argument("--batchsize", type=int, default=32)
     parser.add_argument("--batches", type=int, default=2)
@@ -30,6 +38,8 @@ def main():
     )
     args = parser.parse_args()
 
+    network = args.network or args.network_name or "resnet35x512_fcl512"
+
     if args.gpu >= 0:
         device = torch.device(f"cuda:{args.gpu}")
         device_type_str = "cuda"
@@ -37,7 +47,8 @@ def main():
         device = torch.device("cpu")
         device_type_str = "cpu"
 
-    model = policy_value_network(args.network)
+    print(f"network={network}")
+    model = policy_value_network(network)
     model.cpu()
     swa_model = AveragedModel(model)
 
