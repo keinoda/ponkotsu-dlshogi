@@ -29,6 +29,11 @@ def main():
     parser.add_argument("--gpu", type=int, default=0, help="GPU ID, use -1 for CPU")
     parser.add_argument("--batchsize", type=int, default=32)
     parser.add_argument("--batches", type=int, default=2)
+    parser.add_argument(
+        "--allow_missing_swa_model",
+        action="store_true",
+        help="If checkpoint has no swa_model, use model weights as SWA fallback",
+    )
     parser.add_argument("--use_amp", action="store_true")
     parser.add_argument(
         "--amp_dtype",
@@ -50,16 +55,25 @@ def main():
     print(f"network={network}")
     model = policy_value_network(network)
     model.cpu()
-    swa_model = AveragedModel(model)
 
     checkpoint = torch.load(args.resume, map_location="cpu", weights_only=True)
     model.load_state_dict(checkpoint["model"])
     model.to(device)
+
+    # Initialize from current model weights so fallback path is deterministic.
+    swa_model = AveragedModel(model)
     swa_model.to(device)
 
     if "swa_model" not in checkpoint:
-        raise RuntimeError("checkpoint does not contain swa_model")
-    swa_model.load_state_dict(checkpoint["swa_model"])
+        if not args.allow_missing_swa_model:
+            raise RuntimeError(
+                "checkpoint does not contain swa_model. "
+                "Use a checkpoint created with --use_swa (typically epoch >= SWA start), "
+                "or run with --allow_missing_swa_model to fall back to model weights."
+            )
+        print("WARN: checkpoint has no swa_model; using model weights as fallback")
+    else:
+        swa_model.load_state_dict(checkpoint["swa_model"])
 
     parameter = next(swa_model.parameters())
     print(f"swa param device={parameter.device}, dtype={parameter.dtype}")
