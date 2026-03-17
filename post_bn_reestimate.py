@@ -3,7 +3,7 @@ import os
 
 import numpy as np
 import torch
-from torch.optim.swa_utils import AveragedModel, update_bn
+from torch.optim.swa_utils import update_bn
 
 from dlshogi import serializers
 from dlshogi.data_loader import Hcpe3DataLoader
@@ -26,7 +26,13 @@ def main():
         nargs="*",
         help="hcpe3 training data files (optional when --cache exists)",
     )
-    parser.add_argument("--checkpoint", required=True, help="checkpoint path")
+    parser.add_argument(
+        "--model",
+        "--checkpoint",
+        dest="model_path",
+        required=True,
+        help="dlshogi npz model path",
+    )
     parser.add_argument("--network", required=True, help="dlshogi network name")
     parser.add_argument("--output_model", required=True, help="output npz model path")
     parser.add_argument("--gpu", type=int, default=0, help="GPU ID, use -1 for CPU")
@@ -44,11 +50,6 @@ def main():
     parser.add_argument("--cache", type=str)
     parser.add_argument("--use_amp", action="store_true")
     parser.add_argument("--amp_dtype", choices=["float16", "bfloat16"], default="float16")
-    parser.add_argument(
-        "--allow_missing_swa_model",
-        action="store_true",
-        help="fallback to model weights when checkpoint has no swa_model",
-    )
     args = parser.parse_args()
 
     if not args.train_data and not args.cache:
@@ -67,33 +68,11 @@ def main():
 
     model = policy_value_network(args.network)
     model.cpu()
-    swa_model = AveragedModel(model)
 
-    loaded_from = ""
-    try:
-        checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
-        if not isinstance(checkpoint, dict):
-            raise RuntimeError("unsupported checkpoint object")
+    serializers.load_npz(args.model_path, model)
+    print(f"Loaded weights from npz model: {args.model_path}")
 
-        if "swa_model" in checkpoint:
-            swa_model.load_state_dict(checkpoint["swa_model"])
-            loaded_from = "checkpoint[swa_model]"
-        elif args.allow_missing_swa_model and "model" in checkpoint:
-            model.load_state_dict(checkpoint["model"])
-            swa_model = AveragedModel(model)
-            loaded_from = "checkpoint[model]"
-            print("WARN: swa_model not found. Falling back to model weights.")
-        else:
-            raise RuntimeError("checkpoint does not contain swa_model")
-    except Exception as e:
-        serializers.load_npz(args.checkpoint, model)
-        swa_model = AveragedModel(model)
-        loaded_from = "npz model"
-        print(f"WARN: torch checkpoint load failed ({e}). Loaded as npz model.")
-
-    print(f"Loaded weights from: {loaded_from}")
-
-    swa_model.to(device)
+    model.to(device)
 
     train_len, _actual_len = Hcpe3DataLoader.load_files(
         args.train_data,
@@ -106,18 +85,18 @@ def main():
     train_data = np.arange(train_len, dtype=np.uint64)
 
     amp_dtype = torch.bfloat16 if args.amp_dtype == "bfloat16" else torch.float16
-    forward_ = swa_model.forward
-    swa_model.forward = lambda x: forward_(**x)
+    forward_ = model.forward
+    model.forward = lambda x: forward_(**x)
     try:
         with torch.autocast(device_type_str, enabled=args.use_amp, dtype=amp_dtype):
             update_bn(
                 limited_hcpe_loader(train_data, args.batchsize, device, args.max_batches),
-                swa_model,
+                model,
             )
     finally:
-        del swa_model.forward
+        del model.forward
 
-    serializers.save_npz(args.output_model, swa_model.module)
+    serializers.save_npz(args.output_model, model)
     print(f"Saved: {args.output_model}")
 
 
