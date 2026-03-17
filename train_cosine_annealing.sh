@@ -1,5 +1,5 @@
 #!/bin/bash
-last=370
+last=395
 
 # 変数設定
 save_dir=$1
