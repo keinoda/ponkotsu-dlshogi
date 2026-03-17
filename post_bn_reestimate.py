@@ -15,7 +15,7 @@ def limited_hcpe_loader(data, batchsize, device, max_batches):
     for x1, x2, _t1, _t2, _value in Hcpe3DataLoader(data, batchsize, device):
         yield {"x1": x1, "x2": x2}
         count += 1
-        if max_batches is not None and count >= max_batches:
+        if max_batches is not None and max_batches > 0 and count >= max_batches:
             break
 
 
@@ -35,7 +35,7 @@ def main():
         "--max_batches",
         type=int,
         default=None,
-        help="maximum number of batches for BN re-estimation (omit for full pass)",
+        help="maximum number of batches for BN re-estimation (omit or 0 for full pass)",
     )
     parser.add_argument("--use_average", action="store_true")
     parser.add_argument("--use_evalfix", action="store_true")
@@ -55,8 +55,8 @@ def main():
         parser.error("Specify either train_data files or --cache.")
     if not args.train_data and args.cache and not os.path.isfile(args.cache):
         parser.error(f"cache file not found: {args.cache}")
-    if args.max_batches is not None and args.max_batches <= 0:
-        parser.error("--max_batches must be a positive integer when specified.")
+    if args.max_batches is not None and args.max_batches < 0:
+        parser.error("--max_batches must be >= 0 when specified.")
 
     if args.gpu >= 0:
         device = torch.device(f"cuda:{args.gpu}")
@@ -69,14 +69,29 @@ def main():
     model.cpu()
     swa_model = AveragedModel(model)
 
-    checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
-    if "swa_model" in checkpoint:
-        swa_model.load_state_dict(checkpoint["swa_model"])
-    elif args.allow_missing_swa_model and "model" in checkpoint:
-        model.load_state_dict(checkpoint["model"])
-        print("WARN: swa_model not found. Falling back to model weights.")
-    else:
-        raise RuntimeError("checkpoint does not contain swa_model")
+    loaded_from = ""
+    try:
+        checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
+        if not isinstance(checkpoint, dict):
+            raise RuntimeError("unsupported checkpoint object")
+
+        if "swa_model" in checkpoint:
+            swa_model.load_state_dict(checkpoint["swa_model"])
+            loaded_from = "checkpoint[swa_model]"
+        elif args.allow_missing_swa_model and "model" in checkpoint:
+            model.load_state_dict(checkpoint["model"])
+            swa_model = AveragedModel(model)
+            loaded_from = "checkpoint[model]"
+            print("WARN: swa_model not found. Falling back to model weights.")
+        else:
+            raise RuntimeError("checkpoint does not contain swa_model")
+    except Exception as e:
+        serializers.load_npz(args.checkpoint, model)
+        swa_model = AveragedModel(model)
+        loaded_from = "npz model"
+        print(f"WARN: torch checkpoint load failed ({e}). Loaded as npz model.")
+
+    print(f"Loaded weights from: {loaded_from}")
 
     swa_model.to(device)
 
