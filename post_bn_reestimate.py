@@ -15,7 +15,7 @@ def limited_hcpe_loader(data, batchsize, device, max_batches):
     for x1, x2, _t1, _t2, _value in Hcpe3DataLoader(data, batchsize, device):
         yield {"x1": x1, "x2": x2}
         count += 1
-        if max_batches > 0 and count >= max_batches:
+        if max_batches is not None and count >= max_batches:
             break
 
 
@@ -31,7 +31,12 @@ def main():
     parser.add_argument("--output_model", required=True, help="output npz model path")
     parser.add_argument("--gpu", type=int, default=0, help="GPU ID, use -1 for CPU")
     parser.add_argument("--batchsize", type=int, default=1024)
-    parser.add_argument("--max_batches", type=int, default=0, help="0 means full pass")
+    parser.add_argument(
+        "--max_batches",
+        type=int,
+        default=None,
+        help="maximum number of batches for BN re-estimation (omit for full pass)",
+    )
     parser.add_argument("--use_average", action="store_true")
     parser.add_argument("--use_evalfix", action="store_true")
     parser.add_argument("--temperature", type=float, default=1.0)
@@ -50,6 +55,8 @@ def main():
         parser.error("Specify either train_data files or --cache.")
     if not args.train_data and args.cache and not os.path.isfile(args.cache):
         parser.error(f"cache file not found: {args.cache}")
+    if args.max_batches is not None and args.max_batches <= 0:
+        parser.error("--max_batches must be a positive integer when specified.")
 
     if args.gpu >= 0:
         device = torch.device(f"cuda:{args.gpu}")
