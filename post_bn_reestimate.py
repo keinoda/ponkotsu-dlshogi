@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 import numpy as np
 import torch
@@ -10,13 +11,29 @@ from dlshogi.data_loader import Hcpe3DataLoader
 from dlshogi.network.policy_value_network import policy_value_network
 
 
-def limited_hcpe_loader(data, batchsize, device, max_batches):
+def limited_hcpe_loader(data, batchsize, device, max_batches, total_batches):
     count = 0
+    start = time.time()
     for x1, x2, _t1, _t2, _value in Hcpe3DataLoader(data, batchsize, device):
         yield {"x1": x1, "x2": x2}
         count += 1
+        elapsed = time.time() - start
+        if total_batches is not None:
+            pct = 100.0 * count / total_batches
+            print(
+                f"\rBN re-estimation: {count}/{total_batches} batches ({pct:5.1f}%) elapsed {elapsed:,.1f}s",
+                end="",
+                flush=True,
+            )
+        else:
+            print(
+                f"\rBN re-estimation: {count} batches elapsed {elapsed:,.1f}s",
+                end="",
+                flush=True,
+            )
         if max_batches is not None and max_batches > 0 and count >= max_batches:
             break
+    print()
 
 
 def main():
@@ -84,13 +101,20 @@ def main():
     )
     train_data = np.arange(train_len, dtype=np.uint64)
 
+    if args.max_batches is not None and args.max_batches > 0:
+        total_batches = min((train_len + args.batchsize - 1) // args.batchsize, args.max_batches)
+    else:
+        total_batches = (train_len + args.batchsize - 1) // args.batchsize
+
+    print(f"Starting BN re-estimation: total_batches={total_batches}, batchsize={args.batchsize}")
+
     amp_dtype = torch.bfloat16 if args.amp_dtype == "bfloat16" else torch.float16
     forward_ = model.forward
     model.forward = lambda x: forward_(**x)
     try:
         with torch.autocast(device_type_str, enabled=args.use_amp, dtype=amp_dtype):
             update_bn(
-                limited_hcpe_loader(train_data, args.batchsize, device, args.max_batches),
+                limited_hcpe_loader(train_data, args.batchsize, device, args.max_batches, total_batches),
                 model,
             )
     finally:
