@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import numpy as np
 import torch
@@ -20,7 +21,11 @@ def limited_hcpe_loader(data, batchsize, device, max_batches):
 
 def main():
     parser = argparse.ArgumentParser(description="Run SWA BN re-estimation as post process")
-    parser.add_argument("train_data", nargs="+", help="hcpe3 training data files")
+    parser.add_argument(
+        "train_data",
+        nargs="*",
+        help="hcpe3 training data files (optional when --cache exists)",
+    )
     parser.add_argument("--checkpoint", required=True, help="checkpoint path")
     parser.add_argument("--network", required=True, help="dlshogi network name")
     parser.add_argument("--output_model", required=True, help="output npz model path")
@@ -40,6 +45,11 @@ def main():
         help="fallback to model weights when checkpoint has no swa_model",
     )
     args = parser.parse_args()
+
+    if not args.train_data and not args.cache:
+        parser.error("Specify either train_data files or --cache.")
+    if not args.train_data and args.cache and not os.path.isfile(args.cache):
+        parser.error(f"cache file not found: {args.cache}")
 
     if args.gpu >= 0:
         device = torch.device(f"cuda:{args.gpu}")
