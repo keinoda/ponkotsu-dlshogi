@@ -55,7 +55,7 @@ for ((i=$start; i<=$last; i++)); do
     fi
 
     if [ $i -ge 350 ]; then
-        use_swa="--use_swa"
+        use_swa="--use_swa --skip_bn_reestimate"
     else
         use_swa=""
     fi
