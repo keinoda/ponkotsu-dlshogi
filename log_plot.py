@@ -39,12 +39,17 @@ def parse_log_file(log_file_path):
         r'(?:,\s*test entropy = ([^,]+),\s*([^,]+))?'  # test entropy は存在しない場合もあるのでオプション
     )
 
-    results = []
+    # SWA 有効時は同一 epoch の評価が後段で追記される場合がある。
+    # プロットでは epoch 終了時点の元の集計値を使いたいので、各 epoch の最初の結果だけ採用する。
+    results_by_epoch = {}
     with open(log_file_path, 'r', encoding='utf-8') as f:
         for line in f:
             match = pattern_final_epoch.search(line)
             if match:
                 epoch = int(match.group(1))
+                if epoch in results_by_epoch:
+                    continue
+
                 steps = int(match.group(2))
 
                 # train loss: 4つ
@@ -67,7 +72,7 @@ def parse_log_file(log_file_path):
                 test_entropy_policy = float(match.group(13)) if match.group(13) else None
                 test_entropy_value  = float(match.group(14)) if match.group(14) else None
 
-                results.append({
+                results_by_epoch[epoch] = {
                     'epoch': epoch,
                     'steps': steps,
                     'train_loss_policy': train_loss_policy,
@@ -82,10 +87,10 @@ def parse_log_file(log_file_path):
                     'test_acc_value': test_acc_value,
                     'test_entropy_policy': test_entropy_policy,
                     'test_entropy_value': test_entropy_value
-                })
+                }
 
     # epoch 順にソート
-    results.sort(key=lambda x: x['epoch'])
+    results = sorted(results_by_epoch.values(), key=lambda x: x['epoch'])
     return results
 
 
