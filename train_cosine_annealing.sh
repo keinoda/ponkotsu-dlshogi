@@ -1,5 +1,5 @@
 #!/bin/bash
-last=395
+last=348
 
 # 変数設定
 save_dir=$1
@@ -19,7 +19,7 @@ for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do c
 if [ -v chkp ];then
     start=$(expr ${chkp: -7:3} + 1)
 else
-    start=326
+    start=348
 fi
 
 for ((i=$start; i<=$last; i++)); do
@@ -34,8 +34,8 @@ for ((i=$start; i<=$last; i++)); do
         ${data_dir}/selfplay_ponkotsu_wcsc35_filtered-${kkk}"
 
     # チェックポイントが存在する場合、最新のチェックポイントから学習を継続
-    if [ $i -eq 326 ]; then
-        resume="-r ${checkpoint_dir}/checkpoint_resnet35x512_cos_anealing-325.pth"
+    if [ $i -eq 348 ]; then
+        resume="-r ${checkpoint_dir}/checkpoint_resnet35x512_cos_anealing_add_data-347.pth"
     else
         resume="-r ${checkpoint_dir}/checkpoint_${name}-${jjj}.pth"
     fi
@@ -54,8 +54,8 @@ for ((i=$start; i<=$last; i++)); do
         reset=""
     fi
 
-    if [ $i -ge 350 ]; then
-        use_swa="--use_swa --skip_bn_reestimate"
+    if [ $i -ge 347 ]; then
+        use_swa="--use_swa"
     else
         use_swa=""
     fi
