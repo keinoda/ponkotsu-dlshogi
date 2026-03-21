@@ -10,7 +10,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     software-properties-common \
     curl fish \
     build-essential libopenblas-dev \
-    clang lld clangd \
+    clang-20 lld-20 clangd-20 \
     libjemalloc-dev libjemalloc2  && \
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs && \
