@@ -23,7 +23,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     unzip \
     software-properties-common \
     build-essential libopenblas-dev \
-    clang lld clangd libomp-dev libboost-all-dev \
+    clang-20 lld-20 clangd-20 libomp-dev libboost-all-dev \
     tmux fish libjemalloc-dev libjemalloc2  && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     apt-get clean && \
