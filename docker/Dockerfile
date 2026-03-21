@@ -12,8 +12,6 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     build-essential libopenblas-dev \
     clang-20 lld-20 clangd-20 \
     libjemalloc-dev libjemalloc2  && \
-    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
-    apt-get install -y nodejs && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
