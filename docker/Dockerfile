@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/tensorrt:24.12-py3
+FROM nvcr.io/nvidia/tensorrt:26.02-py3
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -s -f /bin/true /usr/bin/chfn
