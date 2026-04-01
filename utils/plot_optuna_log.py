@@ -71,7 +71,7 @@ def plot(trials, output_path):
     for p in param_names:
         text += f"{p}: {best_trial[p]}\n"
     ax.text(0.1, 0.9, text, transform=ax.transAxes, fontsize=12,
-            verticalalignment="top", fontfamily="monospace",
+            verticalalignment="top",
             bbox=dict(boxstyle="round", facecolor="lightyellow", alpha=0.8))
     ax.set_title("ベストパラメータ")
 
