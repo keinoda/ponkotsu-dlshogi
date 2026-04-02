@@ -120,7 +120,7 @@ def plot_param_history(trials, output_path):
 
     for ax, pname in zip(axes.flat, PARAM_NAMES):
         values = [t[pname] for t in trials]
-        scatter = ax.scatter(trial_ids, values, c=win_rates, cmap="RdYlGn", alpha=0.8,
+        scatter = ax.scatter(trial_ids, values, c=win_rates, cmap="RdYlBu_r", alpha=0.8,
                             edgecolors="black", linewidth=0.5, vmin=min(win_rates), vmax=max(win_rates))
         ax.set_xlabel("Trial")
         ax.set_ylabel(pname)
