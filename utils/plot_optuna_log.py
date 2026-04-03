@@ -44,6 +44,7 @@ def plot(trials, output_path):
     best_win_rates = [-v * 100 for v in best_values]
     ax.scatter(trial_ids, win_rates, c="steelblue", alpha=0.7, label="各Trial", zorder=2)
     ax.plot(trial_ids, best_win_rates, c="red", linewidth=2, label="ベスト", zorder=3)
+    ax.axhline(y=48.5, color="gray", linestyle="--", linewidth=1.5, label="デフォルト (48.5%)", zorder=1)
     ax.set_xlabel("Trial")
     ax.set_ylabel("勝率 (%)")
     ax.set_title("勝率推移")
@@ -61,6 +62,7 @@ def plot(trials, output_path):
         ax.set_xlabel(pname)
         ax.set_ylabel("勝率 (%)")
         ax.set_title(f"{pname} vs 勝率")
+        ax.axhline(y=48.5, color="gray", linestyle="--", linewidth=1, alpha=0.7)
         ax.grid(True, alpha=0.3)
         cbar = plt.colorbar(scatter, ax=ax)
         cbar.set_label("Trial")
