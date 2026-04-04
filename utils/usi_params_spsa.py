@@ -46,11 +46,15 @@ def clamp(v, lo, hi):
     return max(lo, min(hi, v))
 
 
-def run_match(command1, command2, options1, options2, params, args):
+def run_match(command1, command2, options1, options2, params, args, params2=None):
     """パラメータを設定してエンジン対局を実行し、先後別の勝率を含む結果を返す。
 
     cshogi.cliは先後交互対局(n%2==0: engine1=先手, n%2==1: engine1=後手)。
     callbackの累積値の差分から1局ごとの勝敗を追跡し先後別に集計する。
+
+    Args:
+        params: engine1に適用するパラメータdict
+        params2: engine2に適用するパラメータdict (dev-vs-dev用、Noneならoptions2のみ)
 
     Returns:
         dict: {'total': 総合勝率, 'black': engine1先手時の勝率, 'white': engine1後手時の勝率}
@@ -58,6 +62,10 @@ def run_match(command1, command2, options1, options2, params, args):
     opts1 = dict(options1)
     for k, v in params.items():
         opts1[k] = v
+    opts2 = dict(options2)
+    if params2 is not None:
+        for k, v in params2.items():
+            opts2[k] = v
 
     class Callback:
         def __init__(self):
@@ -102,7 +110,7 @@ def run_match(command1, command2, options1, options2, params, args):
         command1=command1,
         command2=command2,
         options1=opts1,
-        options2=options2,
+        options2=opts2,
         names=[args.name, None],
         games=args.games,
         mate_win=True,
@@ -197,6 +205,7 @@ def spsa_optimize(args):
     logger.info(f"  Ranges: {ranges}")
     logger.info(f"  Iterations: {N}, Games/eval: {args.games}")
     logger.info(f"  Optimize side: {optimize_side}")
+    logger.info(f"  Dev-vs-dev: {args.spsa_dev_vs_dev}")
     logger.info(f"  c_end={c_end} (perturbation, YaneuraOu step/range=1/20={1/20:.3f})")
     logger.info(f"  r_end={r_end} (learning rate)")
     for name in param_names:
@@ -250,9 +259,27 @@ def spsa_optimize(args):
         logger.info(f"    plus:  total={result_plus['total']:.3f} black={result_plus['black']:.3f} white={result_plus['white']:.3f}")
         logger.info(f"    minus: total={result_minus['total']:.3f} black={result_minus['black']:.3f} white={result_minus['white']:.3f}")
 
+        # dev-vs-dev: θ+ vs θ- の直接対戦 (Fishtest方式)
+        result_pm = None
+        win_rate_pm = None
+        if args.spsa_dev_vs_dev:
+            logger.info(f"  Playing theta+ vs theta- match ({args.games} games)...")
+            result_pm = run_match(
+                args.command1, args.command1, options1, options1,
+                params_plus, args, params2=params_minus
+            )
+            win_rate_pm = result_pm[optimize_side]
+            logger.info(f"  [{optimize_side}] win_rate(+vs-)={win_rate_pm:.3f}")
+            logger.info(f"    +vs-:  total={result_pm['total']:.3f} black={result_pm['black']:.3f} white={result_pm['white']:.3f}")
+
         # 正規化空間で勾配推定と更新
+        # dev-vs-dev有効時: score_diff = (WR+ - WR-) + (WR_pm - 0.5)
+        #   WR_pm - 0.5 はθ+がθ-に対する超過勝率 (0なら情報なし)
+        score_diff = win_rate_plus - win_rate_minus
+        if args.spsa_dev_vs_dev and win_rate_pm is not None:
+            score_diff += (win_rate_pm - 0.5)
         for name in param_names:
-            g_hat = (win_rate_plus - win_rate_minus) / (2.0 * c_k * delta[name])
+            g_hat = score_diff / (2.0 * c_k * delta[name])
             phi[name] += r_k * g_hat
             phi[name] = clamp(phi[name], 0.0, 1.0)
 
@@ -278,6 +305,9 @@ def spsa_optimize(args):
                     'win_rate_minus': win_rate_minus,
                     'result_plus': result_plus,
                     'result_minus': result_minus,
+                    'result_pm': result_pm,
+                    'win_rate_pm': win_rate_pm,
+                    'score_diff': score_diff,
                     'c_k': c_k,
                     'r_k': r_k,
                 }
@@ -338,6 +368,8 @@ def main():
                         help='R_End learning rate in normalized space (default: 0.01; YaneuraOu uses 0.002 for per-game updates)')
     parser.add_argument('--optimize_side', choices=['total', 'black', 'white'], default='total',
                         help='Which win rate to optimize: total (default), black (engine1 as sente), white (engine1 as gote)')
+    parser.add_argument('--spsa_dev_vs_dev', action='store_true', default=False,
+                        help='Enable dev-vs-dev match (theta+ vs theta-) per iteration for better gradient estimation (Fishtest style). Adds 50%% more games per iteration.')
 
     parser.add_argument('--spsa_log', type=str, default=None, help='SPSA log file (JSONL)')
     parser.add_argument('--spsa_checkpoint', type=str, default=None, help='Checkpoint file for resume')
