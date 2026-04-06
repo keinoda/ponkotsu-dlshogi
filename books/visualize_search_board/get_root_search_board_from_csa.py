@@ -65,6 +65,7 @@ if __name__ == "__main__":
     args.add_argument("book_path", type=str)
     args.add_argument("csa_dir", type=str)
     args.add_argument("sfens_path", type=str)
+    args.add_argument("--max-abs-score", type=int, default=500)
     args = args.parse_args()
     book_path = args.book_path
 
@@ -95,7 +96,8 @@ if __name__ == "__main__":
                 if score_now != score_next or depth_now != depth_next:
                     score_now = score_next
                     depth_now = depth_next
-                    root_search_sfens.append(board.sfen())
+                    if abs(score_next) <= args.max_abs_score:
+                        root_search_sfens.append(board.sfen())
 
     with open(args.sfens_path, "w") as f:
         f.write("\n".join(root_search_sfens))
