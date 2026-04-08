@@ -52,6 +52,33 @@ class Node:
         self.parent_move_count = 0
         self.parent_key = None
 
+
+def pick_repetition_detour(path_entries, repeated_key):
+    # 千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
+    cycle_start = 0
+    for index, entry in enumerate(path_entries):
+        if entry["key"] == repeated_key:
+            cycle_start = index
+            break
+
+    best_choice = None
+    best_diff = None
+    for entry in path_entries[cycle_start:]:
+        node = entry["node"]
+        if not node.child_move or len(node.child_move) < 2:
+            continue
+
+        best_score = node.child_score[0]
+        for child_index, score in enumerate(node.child_score):
+            if child_index == 0:
+                continue
+            diff = abs(float(score) - float(best_score))
+            if best_diff is None or diff < best_diff:
+                best_diff = diff
+                best_choice = (entry, child_index)
+
+    return best_choice
+
 def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
     root_board = cshogi.Board(sfen=sfen)
     root_key = root_board.zobrist_hash()
@@ -62,7 +89,11 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
 
     val_sum_threshold = 0.95
     next_board = current_node.board.copy()
+    path_entries = []
+    detour_applied = False
     while True:
+        path_entries.append({"key": current_key, "node": current_node})
+
         # policyの上位何手でval_sum_thresholdを超えるか確認する
         child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
         val_sum_threshold_count = 0
@@ -90,6 +121,39 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         best_move = current_node.child_move[best_child_index]
         next_board = current_node.board.copy()
         next_board.push_usi(best_move)
+
+        # 千日手のとき千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
+        if eval_diff == 0 and next_board.is_draw() != NOT_REPETITION:
+            if not detour_applied:
+                detour = pick_repetition_detour(path_entries, next_board.zobrist_hash())
+                if detour is not None:
+                    detour_entry, detour_child_index = detour
+                    detour_node = detour_entry["node"]
+                    detour_key = detour_entry["key"]
+                    detour_move = detour_node.child_move[detour_child_index]
+
+                    print(
+                        f"Repetition detected. Use closest-eval detour move: {detour_move} "
+                        f"(score={detour_node.child_score[detour_child_index]}, best={detour_node.child_score[0]})"
+                    )
+
+                    next_board = detour_node.board.copy()
+                    next_board.push_usi(detour_move)
+                    next_board_key = next_board.zobrist_hash()
+                    current_key = next_board_key
+
+                    if current_key not in book_tree:
+                        break
+
+                    current_node = book_tree[next_board_key]
+                    current_node.board = next_board  # history保持のためboardごとコピーする
+                    detour_applied = True
+                    path_entries = [{"key": detour_key, "node": detour_node}, {"key": current_key, "node": current_node}]
+                    continue
+
+            print("Repetition detected but no detour candidate found. Stop at current board.")
+            break
+
         next_board_key = next_board.zobrist_hash()
         current_key = next_board_key
         if current_key not in book_tree:
