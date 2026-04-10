@@ -8,6 +8,8 @@
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_DIR=$(dirname "$SCRIPT_DIR")
 
+mkdir -p /volume/param_optimize/kifu/resnet35x512_spsa
+
 PYTHONPATH="$REPO_DIR" python -u -m utils.usi_params_spsa \
 /root/YaneuraOu/source/FukauraOu-by-gcc /root/yaneuraou-V921-dev-mac-all/source/YaneuraOu-by-gcc \
 --options1 PV_Interval:0,PV_Mate_Search_Threads:3,DNN_Model:/root/models/model_resnet35x512-348.onnx,NetworkDelay2:0,MaxMovesToDraw:324 \
