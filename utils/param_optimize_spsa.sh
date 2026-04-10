@@ -5,7 +5,10 @@
 #
 # dev-vs-dev有効: 30 iter × 150局 (θ+50 + θ-50 + θ+vsθ-50) = 4,500局
 
-python -u -m utils.usi_params_spsa \
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_DIR=$(dirname "$SCRIPT_DIR")
+
+PYTHONPATH="$REPO_DIR" python -u -m utils.usi_params_spsa \
 /root/YaneuraOu/source/FukauraOu-by-gcc /root/yaneuraou-V921-dev-mac-all/source/YaneuraOu-by-gcc \
 --options1 PV_Interval:0,PV_Mate_Search_Threads:3,DNN_Model:/root/models/model_resnet35x512-348.onnx,NetworkDelay2:0,MaxMovesToDraw:324 \
 --options2 PV_Interval:0,NetworkDelay2:0,Threads:2,USI_Hash:256,EvalDir:/volume/book/suisho11b,FV_SCALE:28,MaxMovesToDraw:324 \
