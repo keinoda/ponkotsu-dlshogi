@@ -107,8 +107,8 @@ def run_match(command1, command2, options1, options2, params, args, params2=None
 
     callback = Callback()
     kwargs = dict(
-        command1=command1,
-        command2=command2,
+        engine1=command1,
+        engine2=command2,
         options1=opts1,
         options2=opts2,
         names=[args.name, None],
