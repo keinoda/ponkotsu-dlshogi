@@ -1,0 +1,8 @@
+[Unit]
+Description=Plot SPSA log and post to Misskey
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /home/jj1guj/ponkotsu_wcsc33/utils/note_spsa_log.sh /home/jj1guj/jiskey_access_token
+User=jj1guj
+WorkingDirectory=/home/jj1guj/ponkotsu_wcsc33
