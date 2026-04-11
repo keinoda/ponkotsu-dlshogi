@@ -51,8 +51,7 @@ for img in "$PLOT_MAIN" "$PLOT_PARAMS" "$PLOT_SCATTER"; do
 done
 
 # ノート本文作成
-text="SPSA最適化ログ\n"
-text+=$($PYTHON -c "
+text=$($PYTHON -c "
 import re, ast
 with open('$LOG_FILE') as f:
     text = f.read()
@@ -72,7 +71,7 @@ current = ast.literal_eval(thetas[-1]) if thetas else init_p
 # 最新のwin_rate
 wr_plus = re.findall(r'win_rate\+=([\d.]+)', text)
 wr_minus = re.findall(r'win_rate-=([\d.]+)', text)
-lines = [f'完了: {completed} iterations']
+lines = ['SPSA最適化ログ', f'完了: {completed} iterations']
 if wr_plus:
     lines.append(f'最新 WR+: {float(wr_plus[-1])*100:.1f}%')
 if wr_minus:
