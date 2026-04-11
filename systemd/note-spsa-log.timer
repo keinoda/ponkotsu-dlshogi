@@ -2,8 +2,7 @@
 Description=Run note-spsa-log every hour
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=1h
+OnCalendar=*-*-* *:00:00
 Persistent=true
 
 [Install]
