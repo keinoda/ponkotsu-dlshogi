@@ -34,7 +34,7 @@ for img in "$PLOT_MAIN" "$PLOT_PARAMS" "$PLOT_SCATTER"; do
         echo "Warning: $img not found, skipping"
         continue
     fi
-    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+    response=$(curl -sS https://jiskey.dev/api/drive/files/create \
         --request POST \
         --header 'Content-Type: multipart/form-data' \
         --header "Authorization: Bearer $(cat "$ACCESS_TOKEN_PATH")" \
@@ -85,7 +85,7 @@ print('\n'.join(lines))
 file_ids_json=$(printf '"%s",' "${file_ids[@]}" | sed 's/,$//')
 
 # ノート投稿
-curl -s -o /dev/null https://jiskey.dev/api/notes/create \
+response=$(curl -sS https://jiskey.dev/api/notes/create \
     --request POST \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $(cat "$ACCESS_TOKEN_PATH")" \
@@ -95,6 +95,7 @@ curl -s -o /dev/null https://jiskey.dev/api/notes/create \
         "visibleUserIds": ["9gptzj80qf"],
         "text": "'"$text"'",
         "fileIds": ['"$file_ids_json"']
-    }'
+    }')
 
+echo "Response: $response"
 echo "Note posted."
