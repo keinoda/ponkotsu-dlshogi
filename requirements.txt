@@ -1,3 +1,6 @@
 dlshogi
 cshogi
 scipy
+numpy
+matplotlib
+japanize-matplotlib

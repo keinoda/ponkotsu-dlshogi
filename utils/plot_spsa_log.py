@@ -17,7 +17,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib.ticker import MaxNLocator
-matplotlib.rcParams['font.family'] = 'Hiragino Sans'
+try:
+    import japanize_matplotlib
+except ImportError:
+    matplotlib.rcParams['font.family'] = 'Hiragino Sans'
 
 PARAM_NAMES = ["C_init", "C_base", "C_fpu_reduction", "C_init_root", "C_base_root", "Softmax_Temperature"]
 
