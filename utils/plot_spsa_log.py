@@ -83,6 +83,29 @@ def parse_text_log(path):
                     win_rate_minus = float(m[1])
                     win_rate_plus = float(m[3])
 
+        # [total]行がない場合、個別マッチ完了結果からフォールバック抽出
+        if win_rate_plus is None or win_rate_minus is None:
+            has_plus = 'Playing theta+ match' in block
+            has_minus = 'Playing theta- match' in block
+            # θ+セクション: "Playing theta+ match" ~ "Playing theta- match"
+            if has_plus and win_rate_plus is None:
+                plus_end = block.find('Playing theta- match') if has_minus else len(block)
+                plus_section = block[block.find('Playing theta+ match'):plus_end]
+                games = re.findall(r'(\d+) of (\d+) games finished\.\n.*?\(([\d.]+)%\)', plus_section, re.DOTALL)
+                if games:
+                    last = games[-1]
+                    win_rate_plus = float(last[2]) / 100.0
+            # θ-セクション: "Playing theta- match" ~ "Playing theta+ vs theta-" or end
+            if has_minus and win_rate_minus is None:
+                minus_start = block.find('Playing theta- match')
+                pm_pos = block.find('Playing theta+ vs theta-', minus_start)
+                minus_end = pm_pos if pm_pos != -1 else len(block)
+                minus_section = block[minus_start:minus_end]
+                games = re.findall(r'(\d+) of (\d+) games finished\.\n.*?\(([\d.]+)%\)', minus_section, re.DOTALL)
+                if games:
+                    last = games[-1]
+                    win_rate_minus = float(last[2]) / 100.0
+
         # dev-vs-dev
         m_pm = re.search(r'win_rate\(\+vs-\)=([\d.]+)', block)
         win_rate_pm = float(m_pm.group(1)) if m_pm else None
@@ -97,9 +120,6 @@ def parse_text_log(path):
         # Updated theta
         m_ut = re.search(r'Updated theta = ({.*?})', block)
         theta = ast.literal_eval(m_ut.group(1)) if m_ut else None
-
-        if theta is None:
-            continue
 
         records.append({
             'iteration': iteration,
@@ -119,22 +139,26 @@ def parse_text_log(path):
 
 def plot_spsa(records, init_params, output_path):
     if not records:
-        print("No completed iterations found.")
+        print("No iterations found.")
         return
 
+    completed = [r for r in records if r['theta'] is not None]
     iters = [r['iteration'] for r in records]
-    n = len(iters)
+    n_completed = len(completed)
+    n_total = len(records)
+    status = f"{n_completed} iterations完了" + (f" +{n_total - n_completed}進行中" if n_total > n_completed else "")
 
     fig, axes = plt.subplots(4, 2, figsize=(14, 16))
-    fig.suptitle(f"SPSA パラメータ最適化 ({n} iterations完了)", fontsize=16, y=0.98)
+    fig.suptitle(f"SPSA パラメータ最適化 ({status})", fontsize=16, y=0.98)
 
     # --- 1. 勝率推移 (θ+ vs baseline, θ- vs baseline) ---
     ax = axes[0, 0]
+    iters_plus = [r['iteration'] for r in records if r['win_rate_plus'] is not None]
     wr_plus = [r['win_rate_plus'] * 100 for r in records if r['win_rate_plus'] is not None]
+    iters_minus = [r['iteration'] for r in records if r['win_rate_minus'] is not None]
     wr_minus = [r['win_rate_minus'] * 100 for r in records if r['win_rate_minus'] is not None]
-    iters_wr = [r['iteration'] for r in records if r['win_rate_plus'] is not None]
-    ax.plot(iters_wr, wr_plus, 'o-', color='steelblue', label='θ+ vs baseline', markersize=4)
-    ax.plot(iters_wr, wr_minus, 's-', color='coral', label='θ- vs baseline', markersize=4)
+    ax.plot(iters_plus, wr_plus, 'o-', color='steelblue', label='θ+ vs baseline', markersize=4)
+    ax.plot(iters_minus, wr_minus, 's-', color='coral', label='θ- vs baseline', markersize=4)
     ax.axhline(y=50, color='gray', linestyle='--', linewidth=1, alpha=0.7)
     ax.set_xlabel('Iteration')
     ax.set_ylabel('勝率 (%)')
@@ -173,7 +197,7 @@ def plot_spsa(records, init_params, output_path):
     ax.set_title('勾配信号 (score_diff)')
     ax.grid(True, alpha=0.3)
 
-    # --- 4. c_k, r_k 減衰 ---
+    # --- 4. c_k, r_k 減衰 (全イテレーション表示可能) ---
     ax = axes[1, 1]
     ax.plot(iters, [r['c_k'] for r in records], 'o-', color='purple', label='c_k (摂動)', markersize=3)
     ax.plot(iters, [r['r_k'] for r in records], 's-', color='darkorange', label='r_k (学習率)', markersize=3)
@@ -186,11 +210,11 @@ def plot_spsa(records, init_params, output_path):
     # --- 5. パラメータ絶対値テーブル (最新値 vs 初期値) ---
     ax = axes[2, 0]
     ax.axis('off')
-    last = records[-1]['theta']
+    last_theta = completed[-1]['theta'] if completed else init_params
     table_data = []
     for pname in PARAM_NAMES:
         iv = init_params.get(pname, '-')
-        cv = last.get(pname, '-')
+        cv = last_theta.get(pname, '-')
         diff = cv - iv if isinstance(cv, (int, float)) and isinstance(iv, (int, float)) else '-'
         sign = '+' if isinstance(diff, (int, float)) and diff > 0 else ''
         table_data.append([pname, str(iv), str(cv), f'{sign}{diff}'])
@@ -205,7 +229,7 @@ def plot_spsa(records, init_params, output_path):
     table.scale(1, 1.5)
     ax.set_title('パラメータ一覧', fontsize=12, pad=20)
 
-    # --- 6. 勝率まとめ (最新イテレーション) ---
+    # --- 6. 勝率まとめ (最新データあるイテレーション) ---
     ax = axes[2, 1]
     ax.axis('off')
     last_r = records[-1]
@@ -228,14 +252,15 @@ def plot_spsa(records, init_params, output_path):
     table2.scale(1, 1.5)
     ax.set_title(f'最新 Iteration {last_r["iteration"]} サマリ', fontsize=12, pad=20)
 
-    # --- 7. 全パラメータ変化率 (1枚にまとめ) ---
+    # --- 7. 全パラメータ変化率 (完了イテレーションのみ) ---
     ax = axes[3, 0]
     colors_p = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+    iters_c = [r['iteration'] for r in completed]
     for i, pname in enumerate(PARAM_NAMES):
-        vals = [r['theta'][pname] for r in records]
+        vals = [r['theta'][pname] for r in completed]
         init_val = init_params.get(pname, vals[0] if vals else 0)
         pct = [(v - init_val) / max(abs(init_val), 1) * 100 for v in vals]
-        ax.plot(iters, pct, 'o-', color=colors_p[i], markersize=4, label=pname)
+        ax.plot(iters_c, pct, 'o-', color=colors_p[i], markersize=4, label=pname)
     ax.axhline(y=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
     ax.set_xlabel('Iteration')
     ax.set_ylabel('初期値からの変化率 (%)')
@@ -250,11 +275,11 @@ def plot_spsa(records, init_params, output_path):
     }
     ax = axes[3, 1]
     for i, pname in enumerate(PARAM_NAMES):
-        vals = [r['theta'][pname] for r in records]
-        lo, hi = RANGES.get(pname, (min(vals), max(vals)))
+        vals = [r['theta'][pname] for r in completed]
+        lo, hi = RANGES.get(pname, (min(vals) if vals else 0, max(vals) if vals else 1))
         normed = [(v - lo) / (hi - lo) for v in vals]
-        init_normed = (init_params.get(pname, vals[0]) - lo) / (hi - lo)
-        ax.plot(iters, normed, 'o-', color=colors_p[i], markersize=4, label=pname)
+        init_normed = (init_params.get(pname, vals[0] if vals else 0) - lo) / (hi - lo)
+        ax.plot(iters_c, normed, 'o-', color=colors_p[i], markersize=4, label=pname)
         ax.axhline(y=init_normed, color=colors_p[i], linestyle=':', linewidth=0.8, alpha=0.5)
     ax.set_xlabel('Iteration')
     ax.set_ylabel('正規化値 [0, 1]')
@@ -273,11 +298,15 @@ def plot_params_detail(records, init_params, output_path):
     if not records:
         return
 
+    completed = [r for r in records if r['theta'] is not None]
     iters = [r['iteration'] for r in records]
-    n = len(iters)
+    iters_c = [r['iteration'] for r in completed]
+    n_completed = len(completed)
+    n_total = len(records)
+    status = f"{n_completed} iterations完了" + (f" +{n_total - n_completed}進行中" if n_total > n_completed else "")
 
     fig, axes = plt.subplots(4, 2, figsize=(14, 18))
-    fig.suptitle(f"SPSA パラメータ詳細 ({n} iterations完了)", fontsize=16, y=0.98)
+    fig.suptitle(f"SPSA パラメータ詳細 ({status})", fontsize=16, y=0.98)
 
     # --- 上段 3×2: パラメータ時系列推移 ---
     for i, pname in enumerate(PARAM_NAMES):
@@ -285,13 +314,13 @@ def plot_params_detail(records, init_params, output_path):
         col = i % 2
         ax = axes[row, col]
 
-        vals = [r['theta'][pname] for r in records]
+        vals = [r['theta'][pname] for r in completed]
         init_val = init_params.get(pname, vals[0] if vals else 0)
 
-        ax.plot(iters, vals, 'o-', color='steelblue', markersize=4, label='θ (現在値)')
+        ax.plot(iters_c, vals, 'o-', color='steelblue', markersize=4, label='θ (現在値)')
         ax.axhline(y=init_val, color='red', linestyle='--', linewidth=1.5, alpha=0.7, label=f'初期値 ({init_val})')
 
-        # θ+, θ-の摂動範囲
+        # θ+, θ-の摂動範囲 (全イテレーション表示可能)
         vp = [r['theta_plus'].get(pname, np.nan) for r in records]
         vm = [r['theta_minus'].get(pname, np.nan) for r in records]
         ax.fill_between(iters, vm, vp, alpha=0.15, color='steelblue', label='θ± 範囲')
@@ -325,7 +354,7 @@ def plot_params_detail(records, init_params, output_path):
     for pname in PARAM_NAMES:
         iv = init_params.get(pname, '-')
         bv = best_params.get(pname, '-')
-        cv = records[-1]['theta'].get(pname, '-')
+        cv = completed[-1]['theta'].get(pname, '-') if completed else '-'
         table_data.append([pname, str(iv), str(bv), str(cv)])
     table = ax.table(
         cellText=table_data,
@@ -378,6 +407,7 @@ def plot_params_vs_winrate(records, init_params, output_path):
         return
 
     n = len(records)
+    n_completed = len([r for r in records if r['theta'] is not None])
 
     # θ+, θ- のデータ点を収集
     points = []  # list of (iteration, params_dict, win_rate, label)
@@ -398,8 +428,10 @@ def plot_params_vs_winrate(records, init_params, output_path):
     best_idx = max(range(len(points)), key=lambda i: points[i][2])
     best_iter, best_params, best_wr, _ = points[best_idx]
 
+    status = f"{len(points)} データ点, {n_completed} iterations完了" + (f" +{n - n_completed}進行中" if n > n_completed else "")
+
     fig, axes = plt.subplots(4, 2, figsize=(14, 16))
-    fig.suptitle(f"パラメータ vs 勝率 ({len(points)} データ点, {n} iterations)", fontsize=16, y=0.98)
+    fig.suptitle(f"パラメータ vs 勝率 ({status})", fontsize=16, y=0.98)
 
     # --- 左上: 勝率推移 ---
     ax = axes[0, 0]
@@ -487,12 +519,14 @@ def main():
         print(f"Parsing text log: {log_path}")
         records, init_params = parse_text_log(log_path)
 
-    print(f"Found {len(records)} completed iterations")
+    completed = [r for r in records if r['theta'] is not None]
+    in_progress = [r for r in records if r['theta'] is None]
+    print(f"Found {len(completed)} completed iterations" + (f" (+{len(in_progress)} in progress)" if in_progress else ""))
     if init_params:
         print(f"Initial params: {init_params}")
 
-    if records:
-        last = records[-1]
+    if completed:
+        last = completed[-1]
         print(f"Current theta: {last['theta']}")
 
     plot_spsa(records, init_params, output_path)
