@@ -82,20 +82,25 @@ print('\n'.join(lines))
 ")
 
 # fileIds JSON配列を構築
-file_ids_json=$(printf '"%s",' "${file_ids[@]}" | sed 's/,$//')
+file_ids_json=$(printf '%s\n' "${file_ids[@]}" | jq -R . | jq -s .)
 
-# ノート投稿
+# ノート投稿 (jqでJSON構築)
+json_body=$(jq -n \
+    --arg text "$text" \
+    --argjson fileIds "$file_ids_json" \
+    '{
+        localOnly: true,
+        visibility: "specified",
+        visibleUserIds: ["9gptzj80qf"],
+        text: $text,
+        fileIds: $fileIds
+    }')
+
 response=$(curl -sS https://jiskey.dev/api/notes/create \
     --request POST \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $(cat "$ACCESS_TOKEN_PATH")" \
-    --data '{
-        "localOnly": true,
-        "visibility": "specified",
-        "visibleUserIds": ["9gptzj80qf"],
-        "text": "'"$text"'",
-        "fileIds": ['"$file_ids_json"']
-    }')
+    --data "$json_body")
 
 echo "Response: $response"
 echo "Note posted."
