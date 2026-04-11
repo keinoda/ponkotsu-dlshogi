@@ -340,7 +340,9 @@ def plot_params_detail(records, init_params, output_path):
         # θ+, θ-の摂動範囲 (全イテレーション表示可能)
         vp = [r['theta_plus'].get(pname, np.nan) for r in records]
         vm = [r['theta_minus'].get(pname, np.nan) for r in records]
-        ax.fill_between(iters, vm, vp, alpha=0.15, color='steelblue', label='θ± 範囲')
+        lower = [min(a, b) for a, b in zip(vm, vp)]
+        upper = [max(a, b) for a, b in zip(vm, vp)]
+        ax.fill_between(iters, lower, upper, alpha=0.15, color='steelblue', label='θ± 範囲')
 
         ax.set_xlabel('Iteration')
         ax.set_ylabel(pname)
