@@ -125,7 +125,7 @@ def plot_spsa(records, init_params, output_path):
     iters = [r['iteration'] for r in records]
     n = len(iters)
 
-    fig, axes = plt.subplots(4, 2, figsize=(14, 18))
+    fig, axes = plt.subplots(4, 2, figsize=(14, 16))
     fig.suptitle(f"SPSA パラメータ最適化 ({n} iterations完了)", fontsize=16, y=0.98)
 
     # --- 1. 勝率推移 (θ+ vs baseline, θ- vs baseline) ---
@@ -162,7 +162,6 @@ def plot_spsa(records, init_params, output_path):
         colors = ['steelblue' if v >= 0 else 'coral' for v in sd_vals]
         ax.bar(sd_iters, sd_vals, color=colors, alpha=0.7)
         ax.axhline(y=0, color='gray', linestyle='-', linewidth=1)
-        # 移動平均
         if len(sd_vals) >= 3:
             window = min(5, len(sd_vals))
             ma = np.convolve(sd_vals, np.ones(window)/window, mode='valid')
@@ -184,9 +183,105 @@ def plot_spsa(records, init_params, output_path):
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
 
-    # --- 5~10. 各パラメータの推移 ---
+    # --- 5. パラメータ絶対値テーブル (最新値 vs 初期値) ---
+    ax = axes[2, 0]
+    ax.axis('off')
+    last = records[-1]['theta']
+    table_data = []
+    for pname in PARAM_NAMES:
+        iv = init_params.get(pname, '-')
+        cv = last.get(pname, '-')
+        diff = cv - iv if isinstance(cv, (int, float)) and isinstance(iv, (int, float)) else '-'
+        sign = '+' if isinstance(diff, (int, float)) and diff > 0 else ''
+        table_data.append([pname, str(iv), str(cv), f'{sign}{diff}'])
+    table = ax.table(
+        cellText=table_data,
+        colLabels=['パラメータ', '初期値', '現在値', '差分'],
+        loc='center',
+        cellLoc='center',
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 1.5)
+    ax.set_title('パラメータ一覧', fontsize=12, pad=20)
+
+    # --- 6. 勝率まとめ (最新イテレーション) ---
+    ax = axes[2, 1]
+    ax.axis('off')
+    last_r = records[-1]
+    summary = [
+        ['θ+ vs baseline', f"{last_r['win_rate_plus']*100:.1f}%" if last_r['win_rate_plus'] else '-'],
+        ['θ- vs baseline', f"{last_r['win_rate_minus']*100:.1f}%" if last_r['win_rate_minus'] else '-'],
+        ['θ+ vs θ- (dev)', f"{last_r['win_rate_pm']*100:.1f}%" if last_r['win_rate_pm'] else '-'],
+        ['score_diff', f"{last_r['score_diff']:.4f}" if last_r['score_diff'] else '-'],
+        ['c_k', f"{last_r['c_k']:.4f}"],
+        ['r_k', f"{last_r['r_k']:.4f}"],
+    ]
+    table2 = ax.table(
+        cellText=summary,
+        colLabels=['項目', '最新Iteration'],
+        loc='center',
+        cellLoc='center',
+    )
+    table2.auto_set_font_size(False)
+    table2.set_fontsize(10)
+    table2.scale(1, 1.5)
+    ax.set_title(f'最新 Iteration {last_r["iteration"]} サマリ', fontsize=12, pad=20)
+
+    # --- 7. 全パラメータ変化率 (1枚にまとめ) ---
+    ax = axes[3, 0]
+    colors_p = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     for i, pname in enumerate(PARAM_NAMES):
-        row = 2 + i // 2
+        vals = [r['theta'][pname] for r in records]
+        init_val = init_params.get(pname, vals[0] if vals else 0)
+        pct = [(v - init_val) / max(abs(init_val), 1) * 100 for v in vals]
+        ax.plot(iters, pct, 'o-', color=colors_p[i], markersize=4, label=pname)
+    ax.axhline(y=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('初期値からの変化率 (%)')
+    ax.set_title('全パラメータ変化率')
+    ax.legend(fontsize=7, loc='best', ncol=2)
+    ax.grid(True, alpha=0.3)
+
+    # --- 8. 全パラメータ正規化推移 ---
+    RANGES = {
+        'C_init': (100, 200), 'C_base': (20000, 50000), 'C_fpu_reduction': (0, 40),
+        'C_init_root': (100, 200), 'C_base_root': (20000, 50000), 'Softmax_Temperature': (100, 200),
+    }
+    ax = axes[3, 1]
+    for i, pname in enumerate(PARAM_NAMES):
+        vals = [r['theta'][pname] for r in records]
+        lo, hi = RANGES.get(pname, (min(vals), max(vals)))
+        normed = [(v - lo) / (hi - lo) for v in vals]
+        init_normed = (init_params.get(pname, vals[0]) - lo) / (hi - lo)
+        ax.plot(iters, normed, 'o-', color=colors_p[i], markersize=4, label=pname)
+        ax.axhline(y=init_normed, color=colors_p[i], linestyle=':', linewidth=0.8, alpha=0.5)
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('正規化値 [0, 1]')
+    ax.set_title('全パラメータ正規化推移')
+    ax.legend(fontsize=7, loc='best', ncol=2)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    print(f"Saved: {output_path}")
+    plt.close()
+
+
+def plot_params_detail(records, init_params, output_path):
+    """6パラメータの個別推移(上段) + パラメータ値 vs 勝率散布図(下段) + ベストパラメータ"""
+    if not records:
+        return
+
+    iters = [r['iteration'] for r in records]
+    n = len(iters)
+
+    fig, axes = plt.subplots(4, 2, figsize=(14, 18))
+    fig.suptitle(f"SPSA パラメータ詳細 ({n} iterations完了)", fontsize=16, y=0.98)
+
+    # --- 上段 3×2: パラメータ時系列推移 ---
+    for i, pname in enumerate(PARAM_NAMES):
+        row = i // 2
         col = i % 2
         ax = axes[row, col]
 
@@ -196,7 +291,7 @@ def plot_spsa(records, init_params, output_path):
         ax.plot(iters, vals, 'o-', color='steelblue', markersize=4, label='θ (現在値)')
         ax.axhline(y=init_val, color='red', linestyle='--', linewidth=1.5, alpha=0.7, label=f'初期値 ({init_val})')
 
-        # θ+, θ-も薄く表示
+        # θ+, θ-の摂動範囲
         vp = [r['theta_plus'].get(pname, np.nan) for r in records]
         vm = [r['theta_minus'].get(pname, np.nan) for r in records]
         ax.fill_between(iters, vm, vp, alpha=0.15, color='steelblue', label='θ± 範囲')
@@ -206,6 +301,160 @@ def plot_spsa(records, init_params, output_path):
         ax.set_title(f'{pname} 推移')
         ax.legend(fontsize=8, loc='best')
         ax.grid(True, alpha=0.3)
+
+    # --- 下段左: ベスト θ+ パラメータ ---
+    ax = axes[3, 0]
+    ax.axis('off')
+
+    # θ+/θ- の全データ点を収集して最良を特定
+    best_wr = -1
+    best_params = {}
+    best_label = ''
+    for r in records:
+        if r['win_rate_plus'] is not None and r['win_rate_plus'] > best_wr:
+            best_wr = r['win_rate_plus']
+            best_params = r['theta_plus']
+            best_label = f"Iter {r['iteration']} θ+"
+        if r['win_rate_minus'] is not None and r['win_rate_minus'] > best_wr:
+            best_wr = r['win_rate_minus']
+            best_params = r['theta_minus']
+            best_label = f"Iter {r['iteration']} θ-"
+
+    table_data = [[f'{best_label}', f'{best_wr*100:.1f}%', '', '']]
+    table_data.append(['', '', '', ''])
+    for pname in PARAM_NAMES:
+        iv = init_params.get(pname, '-')
+        bv = best_params.get(pname, '-')
+        cv = records[-1]['theta'].get(pname, '-')
+        table_data.append([pname, str(iv), str(bv), str(cv)])
+    table = ax.table(
+        cellText=table_data,
+        colLabels=['パラメータ', '初期値', 'ベスト評価', '最新θ'],
+        loc='center',
+        cellLoc='center',
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1, 1.4)
+    ax.set_title('ベストパラメータ', fontsize=12, pad=20)
+
+    # --- 下段右: パラメータ値 vs 勝率 散布図 (全パラメータ正規化重ね) ---
+    ax = axes[3, 1]
+    RANGES = {
+        'C_init': (100, 200), 'C_base': (20000, 50000), 'C_fpu_reduction': (0, 40),
+        'C_init_root': (100, 200), 'C_base_root': (20000, 50000), 'Softmax_Temperature': (100, 200),
+    }
+    colors_p = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+    for pi, pname in enumerate(PARAM_NAMES):
+        xs = []
+        ys = []
+        for r in records:
+            lo, hi = RANGES.get(pname, (0, 1))
+            if r['win_rate_plus'] is not None:
+                v = r['theta_plus'].get(pname, 0)
+                xs.append((v - lo) / (hi - lo))
+                ys.append(r['win_rate_plus'] * 100)
+            if r['win_rate_minus'] is not None:
+                v = r['theta_minus'].get(pname, 0)
+                xs.append((v - lo) / (hi - lo))
+                ys.append(r['win_rate_minus'] * 100)
+        ax.scatter(xs, ys, color=colors_p[pi], alpha=0.6, s=20, label=pname)
+    ax.axhline(y=50, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+    ax.set_xlabel('正規化パラメータ値 [0, 1]')
+    ax.set_ylabel('勝率 (%)')
+    ax.set_title('パラメータ値 vs 勝率 (正規化)')
+    ax.legend(fontsize=7, loc='best', ncol=2)
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    print(f"Saved: {output_path}")
+    plt.close()
+
+
+def plot_params_vs_winrate(records, init_params, output_path):
+    """パラメータ値 vs 勝率の散布図を個別に (plot_optuna_log.py スタイル)"""
+    if not records:
+        return
+
+    n = len(records)
+
+    # θ+, θ- のデータ点を収集
+    points = []  # list of (iteration, params_dict, win_rate, label)
+    for r in records:
+        if r['win_rate_plus'] is not None:
+            points.append((r['iteration'], r['theta_plus'], r['win_rate_plus'], 'θ+'))
+        if r['win_rate_minus'] is not None:
+            points.append((r['iteration'], r['theta_minus'], r['win_rate_minus'], 'θ-'))
+
+    if not points:
+        return
+
+    iters_all = [p[0] for p in points]
+    wrs_all = [p[2] * 100 for p in points]
+    labels_all = [p[3] for p in points]
+
+    # ベスト特定
+    best_idx = max(range(len(points)), key=lambda i: points[i][2])
+    best_iter, best_params, best_wr, _ = points[best_idx]
+
+    fig, axes = plt.subplots(4, 2, figsize=(14, 16))
+    fig.suptitle(f"パラメータ vs 勝率 ({len(points)} データ点, {n} iterations)", fontsize=16, y=0.98)
+
+    # --- 左上: 勝率推移 ---
+    ax = axes[0, 0]
+    # θ+/θ- を色分けプロット
+    for label, color, marker in [('θ+', 'steelblue', 'o'), ('θ-', 'coral', 's')]:
+        idxs = [i for i, l in enumerate(labels_all) if l == label]
+        if idxs:
+            ax.scatter([iters_all[i] for i in idxs], [wrs_all[i] for i in idxs],
+                       color=color, marker=marker, alpha=0.7, zorder=2, label=label)
+    # ベスト推移 (イテレーション単位の累積ベスト)
+    iter_best = {}
+    for it, wr in zip(iters_all, wrs_all):
+        iter_best[it] = max(iter_best.get(it, 0), wr)
+    sorted_iters = sorted(iter_best.keys())
+    cum_best = []
+    bsf = 0
+    for it in sorted_iters:
+        bsf = max(bsf, iter_best[it])
+        cum_best.append(bsf)
+    ax.plot(sorted_iters, cum_best, 'r-', linewidth=2, label='ベスト', zorder=3)
+    ax.axhline(y=48.5, color='gray', linestyle='--', linewidth=1.5, label='デフォルト (48.5%)', zorder=1)
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('勝率 (%)')
+    ax.set_title('勝率推移')
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3)
+    # X軸を整数イテレーションに合わせる
+    max_iter = max(iters_all) if iters_all else 0
+    ax.set_xlim(-0.5, max_iter + 0.5)
+    ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+
+    # --- 6パラメータ vs 勝率 散布図: (0,1), (1,0), (1,1), (2,0), (2,1), (3,0) ---
+    scatter_positions = [(0, 1), (1, 0), (1, 1), (2, 0), (2, 1), (3, 0)]
+    for i, pname in enumerate(PARAM_NAMES):
+        row, col = scatter_positions[i]
+        ax = axes[row, col]
+
+        xs = [p[1].get(pname, 0) for p in points]
+        sc = ax.scatter(xs, wrs_all, c=range(len(points)), cmap='viridis', alpha=0.7)
+        ax.set_xlabel(pname)
+        ax.set_ylabel('勝率 (%)')
+        ax.set_title(f'{pname} vs 勝率')
+        ax.grid(True, alpha=0.3)
+        plt.colorbar(sc, ax=ax, label='データ点番号')
+
+    # --- 右下: ベストパラメータ テキスト ---
+    ax = axes[3, 1]
+    ax.axis('off')
+    text_lines = [f'Best: Iter {best_iter}', f'勝率: {best_wr*100:.1f}%', '']
+    for pname in PARAM_NAMES:
+        text_lines.append(f'{pname}: {best_params.get(pname, "-")}')
+    ax.text(0.5, 0.5, '\n'.join(text_lines), transform=ax.transAxes,
+            fontsize=11, verticalalignment='center', horizontalalignment='center',
+            bbox=dict(boxstyle='round,pad=0.5', facecolor='lightyellow', edgecolor='gray', alpha=0.8))
+    ax.set_title('ベストパラメータ', fontsize=12, pad=20)
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
@@ -247,6 +496,15 @@ def main():
         print(f"Current theta: {last['theta']}")
 
     plot_spsa(records, init_params, output_path)
+
+    # パラメータ個別推移を別ファイルに保存
+    base, ext = os.path.splitext(output_path)
+    params_path = base + '_params' + ext
+    plot_params_detail(records, init_params, params_path)
+
+    # パラメータ vs 勝率 散布図を別ファイルに保存
+    scatter_path = base + '_scatter' + ext
+    plot_params_vs_winrate(records, init_params, scatter_path)
 
 
 if __name__ == '__main__':
