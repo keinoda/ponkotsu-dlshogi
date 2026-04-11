@@ -519,12 +519,17 @@ def main():
         print(f"Using JSONL: {jsonl_path}")
         raw = parse_jsonl(jsonl_path)
         init_params = raw[0]['theta'] if raw else {}
-        # JSOLNにはinit_paramsが直接ないので最初のthetaから推定はしない
-        # テキストログからinit_paramsを取得
+        # テキストログからinit_paramsと進行中イテレーションを取得
         if os.path.exists(log_path):
-            _, init_params_txt = parse_text_log(log_path)
+            txt_records, init_params_txt = parse_text_log(log_path)
             if init_params_txt:
                 init_params = init_params_txt
+            # JSONL完了済みイテレーション番号
+            jsonl_iters = {r['iteration'] for r in raw}
+            # テキストログにしかない進行中イテレーションを補完
+            for r in txt_records:
+                if r['iteration'] not in jsonl_iters:
+                    raw.append(r)
         records = raw
     else:
         print(f"Parsing text log: {log_path}")
