@@ -16,6 +16,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+from matplotlib.ticker import MaxNLocator
 matplotlib.rcParams['font.family'] = 'Hiragino Sans'
 
 PARAM_NAMES = ["C_init", "C_base", "C_fpu_reduction", "C_init_root", "C_base_root", "Softmax_Temperature"]
@@ -165,6 +166,7 @@ def plot_spsa(records, init_params, output_path):
     ax.set_title('θ± vs Baseline 勝率推移')
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     # --- 2. Dev-vs-dev 勝率推移 ---
     ax = axes[0, 1]
@@ -177,6 +179,7 @@ def plot_spsa(records, init_params, output_path):
     ax.set_ylabel('θ+ 勝率 (%)')
     ax.set_title('Dev-vs-Dev (θ+ vs θ-)')
     ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     # --- 3. score_diff 推移 ---
     ax = axes[1, 0]
@@ -196,6 +199,7 @@ def plot_spsa(records, init_params, output_path):
     ax.set_ylabel('score_diff')
     ax.set_title('勾配信号 (score_diff)')
     ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     # --- 4. c_k, r_k 減衰 (全イテレーション表示可能) ---
     ax = axes[1, 1]
@@ -206,6 +210,7 @@ def plot_spsa(records, init_params, output_path):
     ax.set_title('ハイパーパラメータ減衰')
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     # --- 5. パラメータ絶対値テーブル (最新値 vs 初期値) ---
     ax = axes[2, 0]
@@ -267,6 +272,7 @@ def plot_spsa(records, init_params, output_path):
     ax.set_title('全パラメータ変化率')
     ax.legend(fontsize=7, loc='best', ncol=2)
     ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     # --- 8. 全パラメータ正規化推移 ---
     RANGES = {
@@ -286,6 +292,7 @@ def plot_spsa(records, init_params, output_path):
     ax.set_title('全パラメータ正規化推移')
     ax.legend(fontsize=7, loc='best', ncol=2)
     ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
@@ -330,6 +337,7 @@ def plot_params_detail(records, init_params, output_path):
         ax.set_title(f'{pname} 推移')
         ax.legend(fontsize=8, loc='best')
         ax.grid(True, alpha=0.3)
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     # --- 下段左: ベスト θ+ パラメータ ---
     ax = axes[3, 0]
@@ -461,7 +469,7 @@ def plot_params_vs_winrate(records, init_params, output_path):
     # X軸を整数イテレーションに合わせる
     max_iter = max(iters_all) if iters_all else 0
     ax.set_xlim(-0.5, max_iter + 0.5)
-    ax.xaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
     # --- 6パラメータ vs 勝率 散布図: (0,1), (1,0), (1,1), (2,0), (2,1), (3,0) ---
     scatter_positions = [(0, 1), (1, 0), (1, 1), (2, 0), (2, 1), (3, 0)]
