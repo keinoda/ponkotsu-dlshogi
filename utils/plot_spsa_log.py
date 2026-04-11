@@ -113,6 +113,13 @@ def parse_text_log(path):
         # dev-vs-dev
         m_pm = re.search(r'win_rate\(\+vs-\)=([\d.]+)', block)
         win_rate_pm = float(m_pm.group(1)) if m_pm else None
+        # dev-vs-dev フォールバック: [total]行がない場合、個別ゲーム結果から抽出
+        if win_rate_pm is None and 'Playing theta+ vs theta-' in block:
+            pm_section = block[block.find('Playing theta+ vs theta-'):]
+            games = re.findall(r'(\d+) of (\d+) games finished\.\n.*?\(([\d.]+)%\)', pm_section, re.DOTALL)
+            if games:
+                last = games[-1]
+                win_rate_pm = float(last[2]) / 100.0
 
         # score_diff
         score_diff = None
