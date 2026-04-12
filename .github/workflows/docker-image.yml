@@ -35,6 +35,17 @@ jobs:
 
       # Dockerイメージのビルドとプッシュ
       - name: Build and push Docker image
+        id: build_push_latest
+        uses: docker/build-push-action@v5
+        continue-on-error: true
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ponkotsu_wcsc33:latest
+
+      - name: Retry build and push Docker image
+        if: steps.build_push_latest.outcome == 'failure'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -43,6 +54,17 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/ponkotsu_wcsc33:latest
 
       - name: Build and push Docker development image
+        id: build_push_develop
+        uses: docker/build-push-action@v5
+        continue-on-error: true
+        with:
+          context: .
+          file: ./docker/Dockerfile.develop
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ponkotsu_wcsc33:develop
+
+      - name: Retry build and push Docker development image
+        if: steps.build_push_develop.outcome == 'failure'
         uses: docker/build-push-action@v5
         with:
           context: .
