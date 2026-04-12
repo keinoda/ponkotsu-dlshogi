@@ -185,17 +185,27 @@ def spsa_optimize(args):
         phi[name] = (float(theta[name]) - lo) / (hi - lo)
 
     # チェックポイントから復元
+    resume_phase = None  # None, 'theta_minus', 'dev_vs_dev'
+    resume_data = {}
     if checkpoint_path and os.path.exists(checkpoint_path):
         with open(checkpoint_path, 'r') as f:
             cp = json.load(f)
-        start_iter = cp['iteration'] + 1
+        phase = cp.get('phase', 'done')
+        if phase in ('theta_minus', 'dev_vs_dev'):
+            # 中間フェーズからの再開
+            start_iter = cp['iteration']
+            resume_phase = phase
+            resume_data = cp
+        else:
+            start_iter = cp['iteration'] + 1
         if 'phi' in cp:
             phi = {k: float(v) for k, v in cp['phi'].items()}
         else:
             for name in param_names:
                 lo, hi = ranges[name]
                 phi[name] = (float(cp['theta'][name]) - lo) / (hi - lo)
-        logger.info(f"Resumed from checkpoint: iteration {start_iter}")
+        logger.info(f"Resumed from checkpoint: iteration {start_iter}" +
+                     (f" phase={resume_phase}" if resume_phase else ""))
 
     # 最適化対象の手番
     optimize_side = args.optimize_side  # 'total', 'black', 'white'
@@ -220,36 +230,76 @@ def spsa_optimize(args):
         c_k = c_end * (1.0 + t)  # 2*c_end → c_end
         r_k = r_end * (1.0 + t)  # 2*r_end → r_end
 
-        # Bernoulli ±1 の摂動ベクトル
-        delta = {name: np.random.choice([-1, 1]) for name in param_names}
+        # 中間フェーズからの再開時はdelta/params/resultsを復元
+        if resume_phase and k == start_iter:
+            delta = {name: int(resume_data['delta'][name]) for name in param_names}
+            params_plus = {name: int(resume_data['theta_plus'][name]) for name in param_names}
+            params_minus = {name: int(resume_data['theta_minus'][name]) for name in param_names}
+            if resume_phase == 'theta_minus':
+                # θ+結果を復元、θ-から再開
+                result_plus = resume_data['result_plus']
+                logger.info(f"\n{'='*60}")
+                logger.info(f"Iteration {k}/{N-1}  t={t:.3f}  c_k={c_k:.4f}  r_k={r_k:.4f}  (resumed: theta- phase)")
+                logger.info(f"  theta+ = {params_plus}")
+                logger.info(f"  theta- = {params_minus}")
+                logger.info(f"  [restored] theta+ result: {resume_data['win_rate_plus']:.3f}")
+            elif resume_phase == 'dev_vs_dev':
+                # θ+/θ-結果を復元、dev-vs-devから再開
+                result_plus = resume_data['result_plus']
+                result_minus = resume_data['result_minus']
+                logger.info(f"\n{'='*60}")
+                logger.info(f"Iteration {k}/{N-1}  t={t:.3f}  c_k={c_k:.4f}  r_k={r_k:.4f}  (resumed: dev-vs-dev phase)")
+                logger.info(f"  theta+ = {params_plus}")
+                logger.info(f"  theta- = {params_minus}")
+                logger.info(f"  [restored] theta+ result: {resume_data['win_rate_plus']:.3f}, theta- result: {resume_data['win_rate_minus']:.3f}")
+        else:
+            # Bernoulli ±1 の摂動ベクトル
+            delta = {name: np.random.choice([-1, 1]) for name in param_names}
 
-        # 正規化空間で摂動 → 実パラメータに変換
-        params_plus = {}
-        params_minus = {}
-        for name in param_names:
-            lo, hi = ranges[name]
-            r = hi - lo
-            phi_p = clamp(phi[name] + c_k * delta[name], 0.0, 1.0)
-            phi_m = clamp(phi[name] - c_k * delta[name], 0.0, 1.0)
-            params_plus[name]  = clamp(int(round(lo + phi_p * r)), lo, hi)
-            params_minus[name] = clamp(int(round(lo + phi_m * r)), lo, hi)
+            # 正規化空間で摂動 → 実パラメータに変換
+            params_plus = {}
+            params_minus = {}
+            for name in param_names:
+                lo, hi = ranges[name]
+                r = hi - lo
+                phi_p = clamp(phi[name] + c_k * delta[name], 0.0, 1.0)
+                phi_m = clamp(phi[name] - c_k * delta[name], 0.0, 1.0)
+                params_plus[name]  = clamp(int(round(lo + phi_p * r)), lo, hi)
+                params_minus[name] = clamp(int(round(lo + phi_m * r)), lo, hi)
 
-        logger.info(f"\n{'='*60}")
-        logger.info(f"Iteration {k}/{N-1}  t={t:.3f}  c_k={c_k:.4f}  r_k={r_k:.4f}")
-        logger.info(f"  theta+ = {params_plus}")
-        logger.info(f"  theta- = {params_minus}")
+            logger.info(f"\n{'='*60}")
+            logger.info(f"Iteration {k}/{N-1}  t={t:.3f}  c_k={c_k:.4f}  r_k={r_k:.4f}")
+            logger.info(f"  theta+ = {params_plus}")
+            logger.info(f"  theta- = {params_minus}")
+            resume_phase = None  # 以降は通常フロー
 
-        # θ+ で対局
-        logger.info(f"  Playing theta+ match ({args.games} games)...")
-        result_plus = run_match(
-            args.command1, args.command2, options1, options2, params_plus, args
-        )
+        # θ+ で対局 (resume_phase == 'theta_minus' or 'dev_vs_dev' ならスキップ)
+        if not (resume_phase and k == start_iter):
+            logger.info(f"  Playing theta+ match ({args.games} games)...")
+            result_plus = run_match(
+                args.command1, args.command2, options1, options2, params_plus, args
+            )
 
-        # θ- で対局
-        logger.info(f"  Playing theta- match ({args.games} games)...")
-        result_minus = run_match(
-            args.command1, args.command2, options1, options2, params_minus, args
-        )
+            # θ+ 完了後の中間チェックポイント保存
+            if checkpoint_path:
+                with open(checkpoint_path, 'w') as f:
+                    json.dump({
+                        'iteration': k,
+                        'phase': 'theta_minus',
+                        'phi': {n: phi[n] for n in param_names},
+                        'delta': {n: int(delta[n]) for n in param_names},
+                        'theta_plus': params_plus,
+                        'theta_minus': params_minus,
+                        'result_plus': result_plus,
+                        'win_rate_plus': result_plus[optimize_side],
+                    }, f)
+
+        # θ- で対局 (resume_phase == 'dev_vs_dev' ならスキップ)
+        if not (resume_phase == 'dev_vs_dev' and k == start_iter):
+            logger.info(f"  Playing theta- match ({args.games} games)...")
+            result_minus = run_match(
+                args.command1, args.command2, options1, options2, params_minus, args
+            )
 
         # 最適化対象の勝率を選択
         win_rate_plus = result_plus[optimize_side]
@@ -258,6 +308,22 @@ def spsa_optimize(args):
         logger.info(f"  [{optimize_side}] win_rate+={win_rate_plus:.3f}, win_rate-={win_rate_minus:.3f}")
         logger.info(f"    plus:  total={result_plus['total']:.3f} black={result_plus['black']:.3f} white={result_plus['white']:.3f}")
         logger.info(f"    minus: total={result_minus['total']:.3f} black={result_minus['black']:.3f} white={result_minus['white']:.3f}")
+
+        # θ- 完了後の中間チェックポイント保存
+        if checkpoint_path:
+            with open(checkpoint_path, 'w') as f:
+                json.dump({
+                    'iteration': k,
+                    'phase': 'dev_vs_dev',
+                    'phi': {n: phi[n] for n in param_names},
+                    'delta': {n: int(delta[n]) for n in param_names},
+                    'theta_plus': params_plus,
+                    'theta_minus': params_minus,
+                    'result_plus': result_plus,
+                    'result_minus': result_minus,
+                    'win_rate_plus': win_rate_plus,
+                    'win_rate_minus': win_rate_minus,
+                }, f)
 
         # dev-vs-dev: θ+ vs θ- の直接対戦 (Fishtest方式)
         result_pm = None
@@ -318,9 +384,13 @@ def spsa_optimize(args):
             with open(checkpoint_path, 'w') as f:
                 json.dump({
                     'iteration': k,
+                    'phase': 'done',
                     'theta': theta,
                     'phi': {n: phi[n] for n in param_names},
                 }, f)
+
+        # 中間再開フラグをクリア
+        resume_phase = None
 
     logger.info(f"\nOptimization finished. Final params: {theta}")
 
