@@ -44,9 +44,18 @@ def parse_text_log(path):
     with open(path) as f:
         text = f.read()
 
-    # 最後の "SPSA optimization start" から使用
+    # 最後の "SPSA optimization start" から使用 (resume時のstartは除外)
     starts = [m.start() for m in re.finditer(r'SPSA optimization start', text)]
-    if starts:
+    # Resumed from checkpoint の直後にあるstartを除外
+    valid_starts = []
+    for s in starts:
+        # start位置の手前200文字にResumedがあればresume時のstart
+        preceding = text[max(0, s - 200):s]
+        if 'Resumed from checkpoint' not in preceding:
+            valid_starts.append(s)
+    if valid_starts:
+        text = text[valid_starts[-1]:]
+    elif starts:
         text = text[starts[-1]:]
 
     # 初期パラメータ
@@ -144,6 +153,12 @@ def parse_text_log(path):
             'c_k': c_k,
             'r_k': r_k,
         })
+
+    # 同じiteration番号が複数ある場合、最後のもの（resume後）を採用
+    seen = {}
+    for r in records:
+        seen[r['iteration']] = r
+    records = [seen[k] for k in sorted(seen.keys())]
 
     return records, init_params
 
