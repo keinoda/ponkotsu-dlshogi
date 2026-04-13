@@ -55,27 +55,59 @@ text=$($PYTHON -c "
 import re, ast
 with open('$LOG_FILE') as f:
     text = f.read()
-starts = [m.start() for m in re.finditer(r'SPSA optimization start', text)]
-if starts:
-    text = text[starts[-1]:]
 blocks = re.split(r'={50,}', text)
 completed = 0
 for b in blocks:
     if re.search(r'Updated theta', b):
         completed += 1
-m = re.search(r'Initial params: ({.*?})', text)
-init_p = ast.literal_eval(m.group(1)) if m else {}
+inits = re.findall(r'Initial params: ({.*?})', text)
+init_p = ast.literal_eval(inits[-1]) if inits else {}
 # 最新のUpdated theta
 thetas = re.findall(r'Updated theta = ({.*?})', text)
 current = ast.literal_eval(thetas[-1]) if thetas else init_p
-# 最新のwin_rate
-wr_plus = re.findall(r'win_rate\+=([\d.]+)', text)
-wr_minus = re.findall(r'win_rate-=([\d.]+)', text)
+
+def extract_live_wr(log_text):
+    # 直近で進行中の対局種別を特定し、そのセクションから途中勝率を拾う
+    markers = list(re.finditer(r'Playing theta\+ match \(\d+ games\)\.\.\.|Playing theta- match \(\d+ games\)\.\.\.|Playing theta\+ vs theta- match \(\d+ games\)\.\.\.', log_text))
+    if not markers:
+        return None, None, False, False
+
+    last = markers[-1]
+    sec = log_text[last.start():]
+    m_rate = re.findall(r'^.* vs .*: \d+-\d+-\d+ \(([\d.]+)%\)$', sec, flags=re.MULTILINE)
+    if not m_rate:
+        return None, None, False, False
+
+    latest_pct = float(m_rate[-1])
+    marker = last.group(0)
+    if 'theta+ vs theta-' in marker:
+        return latest_pct, 100.0 - latest_pct, True, True
+    if 'theta+ match' in marker:
+        return latest_pct, None, True, False
+    if 'theta- match' in marker:
+        return None, latest_pct, False, True
+    return None, None, False, False
+
+def extract_last_completed_wr(log_text):
+    wr = re.findall(r'win_rate\+=([\d.]+), win_rate-=([\d.]+)', log_text)
+    if not wr:
+        return None, None
+    p, m = wr[-1]
+    return float(p) * 100.0, float(m) * 100.0
+
+base_plus, base_minus = extract_last_completed_wr(text)
+live_plus, live_minus, plus_live, minus_live = extract_live_wr(text)
+
+disp_plus = live_plus if plus_live and live_plus is not None else base_plus
+disp_minus = live_minus if minus_live and live_minus is not None else base_minus
+
 lines = ['SPSA最適化ログ', f'完了: {completed} iterations']
-if wr_plus:
-    lines.append(f'最新 WR+: {float(wr_plus[-1])*100:.1f}%')
-if wr_minus:
-    lines.append(f'最新 WR-: {float(wr_minus[-1])*100:.1f}%')
+if disp_plus is not None:
+    suffix = ' (進行中)' if plus_live and live_plus is not None else ''
+    lines.append(f'最新 WR+: {disp_plus:.1f}%{suffix}')
+if disp_minus is not None:
+    suffix = ' (進行中)' if minus_live and live_minus is not None else ''
+    lines.append(f'最新 WR-: {disp_minus:.1f}%{suffix}')
 lines.append(f'現在θ: {current}')
 print('\n'.join(lines))
 ")
