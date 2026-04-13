@@ -89,11 +89,28 @@ def extract_live_wr(log_text):
     return None, None, False, False
 
 def extract_last_completed_wr(log_text):
-    wr = re.findall(r'win_rate\+=([\d.]+), win_rate-=([\d.]+)', log_text)
-    if not wr:
-        return None, None
-    p, m = wr[-1]
-    return float(p) * 100.0, float(m) * 100.0
+    # 個別評価パターン (theta+, theta- 各々の評価)
+    wr_sep = re.findall(r'win_rate\+=([\d.]+), win_rate-=([\d.]+)', log_text)
+    # +vs- パターン (theta+ vs theta- 対局)
+    wr_vs = re.findall(r'win_rate\(\+vs-\)=([\d.]+)', log_text)
+    
+    # どちらが時系列で最後にあるか判定
+    last_sep_pos = None
+    last_vs_pos = None
+    if wr_sep:
+        last_sep_pos = log_text.rfind(f"win_rate+={wr_sep[-1][0]}, win_rate-={wr_sep[-1][1]}")
+    if wr_vs:
+        last_vs_pos = log_text.rfind(f"win_rate(+vs-)={wr_vs[-1]}")
+    
+    # より後ろにあるパターンを採用
+    if last_vs_pos is not None and (last_sep_pos is None or last_vs_pos > last_sep_pos):
+        # +vs- が最新→その値から theta+/theta- に分割
+        val = float(wr_vs[-1])
+        return val * 100.0, (1.0 - val) * 100.0
+    elif wr_sep:
+        p, m = wr_sep[-1]
+        return float(p) * 100.0, float(m) * 100.0
+    return None, None
 
 base_plus, base_minus = extract_last_completed_wr(text)
 live_plus, live_minus, plus_live, minus_live = extract_live_wr(text)
