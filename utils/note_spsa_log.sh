@@ -51,23 +51,26 @@ for img in "$PLOT_MAIN" "$PLOT_PARAMS" "$PLOT_SCATTER"; do
 done
 
 # ノート本文作成
-text=$($PYTHON -c "
-import re, ast
-with open('$LOG_FILE') as f:
+text=$(LOG_FILE="$LOG_FILE" "$PYTHON" - <<'PY'
+import ast
+import os
+import re
+
+with open(os.environ['LOG_FILE']) as f:
     text = f.read()
+
 blocks = re.split(r'={50,}', text)
 completed = 0
 for b in blocks:
     if re.search(r'Updated theta', b):
         completed += 1
+
 inits = re.findall(r'Initial params: ({.*?})', text)
 init_p = ast.literal_eval(inits[-1]) if inits else {}
-# 最新のUpdated theta
 thetas = re.findall(r'Updated theta = ({.*?})', text)
 current = ast.literal_eval(thetas[-1]) if thetas else init_p
 
 def extract_live_wr(log_text):
-    # 直近で進行中の対局種別を特定し、そのセクションから途中勝率を拾う
     markers = list(re.finditer(r'Playing theta\+ match \(\d+ games\)\.\.\.|Playing theta- match \(\d+ games\)\.\.\.|Playing theta\+ vs theta- match \(\d+ games\)\.\.\.', log_text))
     if not markers:
         return None, None, False, False
@@ -89,25 +92,20 @@ def extract_live_wr(log_text):
     return None, None, False, False
 
 def extract_last_completed_wr(log_text):
-    # 個別評価パターン (theta+, theta- 各々の評価)
     wr_sep = re.findall(r'win_rate\+=([\d.]+), win_rate-=([\d.]+)', log_text)
-    # +vs- パターン (theta+ vs theta- 対局)
     wr_vs = re.findall(r'win_rate\(\+vs-\)=([\d.]+)', log_text)
-    
-    # どちらが時系列で最後にあるか判定
+
     last_sep_pos = None
     last_vs_pos = None
     if wr_sep:
-        last_sep_pos = log_text.rfind(f"win_rate+={wr_sep[-1][0]}, win_rate-={wr_sep[-1][1]}")
+        last_sep_pos = log_text.rfind(f'win_rate+={wr_sep[-1][0]}, win_rate-={wr_sep[-1][1]}')
     if wr_vs:
-        last_vs_pos = log_text.rfind(f"win_rate(+vs-)={wr_vs[-1]}")
-    
-    # より後ろにあるパターンを採用
+        last_vs_pos = log_text.rfind(f'win_rate(+vs-)={wr_vs[-1]}')
+
     if last_vs_pos is not None and (last_sep_pos is None or last_vs_pos > last_sep_pos):
-        # +vs- が最新→その値から theta+/theta- に分割
         val = float(wr_vs[-1])
         return val * 100.0, (1.0 - val) * 100.0
-    elif wr_sep:
+    if wr_sep:
         p, m = wr_sep[-1]
         return float(p) * 100.0, float(m) * 100.0
     return None, None
@@ -127,7 +125,8 @@ if disp_minus is not None:
     lines.append(f'最新 WR-: {disp_minus:.1f}%{suffix}')
 lines.append(f'現在θ: {current}')
 print('\n'.join(lines))
-")
+PY
+)
 
 # fileIds JSON配列を構築
 file_ids_json=$(printf '%s\n' "${file_ids[@]}" | jq -R . | jq -s .)
