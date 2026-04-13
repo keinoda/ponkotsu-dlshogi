@@ -88,14 +88,16 @@ def extract_section(block_text, start_token, end_tokens):
 
 def extract_section_pct(section_text):
     if not section_text:
-        return None, False
+        return None, False, None, None
 
     games = re.findall(r'(\d+) of (\d+) games finished\.\n.*?\(([\d.]+)%\)', section_text, re.DOTALL)
     if not games:
-        return None, False
+        return None, False, None, None
 
     finished, total, pct = games[-1]
-    return float(pct), int(finished) >= int(total)
+    finished_i = int(finished)
+    total_i = int(total)
+    return float(pct), finished_i >= total_i, finished_i, total_i
 
 def extract_last_completed_wr(log_text):
     wr_sep = re.findall(r'win_rate\+=([\d.]+), win_rate-=([\d.]+)', log_text)
@@ -108,9 +110,9 @@ plus_section = extract_section(current_block, 'Playing theta+ match', ['Playing 
 minus_section = extract_section(current_block, 'Playing theta- match', ['Playing theta+ vs theta- match'])
 pm_section = extract_section(current_block, 'Playing theta+ vs theta- match', [])
 
-plus_pct, plus_done = extract_section_pct(plus_section)
-minus_pct, minus_done = extract_section_pct(minus_section)
-pm_pct, pm_done = extract_section_pct(pm_section)
+plus_pct, plus_done, plus_finished, plus_total = extract_section_pct(plus_section)
+minus_pct, minus_done, minus_finished, minus_total = extract_section_pct(minus_section)
+pm_pct, pm_done, pm_finished, pm_total = extract_section_pct(pm_section)
 
 base_plus, base_minus = extract_last_completed_wr(text)
 
@@ -148,10 +150,16 @@ elif current_phase == 'pm' and pm_pct is not None:
 
 lines = ['SPSA最適化ログ', f'完了: {completed} iterations']
 if disp_plus is not None:
-    suffix = ' (進行中)' if plus_live else ''
+    if plus_live and plus_finished is not None and plus_total is not None:
+        suffix = f' (進行中: {plus_finished}/{plus_total})'
+    else:
+        suffix = ' (進行中)' if plus_live else ''
     lines.append(f'最新 WR+: {disp_plus:.1f}%{suffix}')
 if disp_minus is not None:
-    suffix = ' (進行中)' if minus_live else ''
+    if minus_live and minus_finished is not None and minus_total is not None:
+        suffix = f' (進行中: {minus_finished}/{minus_total})'
+    else:
+        suffix = ' (進行中)' if minus_live else ''
     lines.append(f'最新 WR-: {disp_minus:.1f}%{suffix}')
 lines.append(f'現在θ: {current}')
 print('\n'.join(lines))
