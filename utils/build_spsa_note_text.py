@@ -122,19 +122,19 @@ def build_note_text(log_text):
             suffix = f" (進行中: {plus_finished}/{plus_total})"
         else:
             suffix = " (進行中)" if plus_live else ""
-        lines.append(f"最新 WR+: {disp_plus:.1f}%{suffix}")
+        lines.append(f"最新 WR θ+: {disp_plus:.1f}%{suffix}")
     if disp_minus is not None:
         if minus_live and minus_finished is not None and minus_total is not None:
             suffix = f" (進行中: {minus_finished}/{minus_total})"
         else:
             suffix = " (進行中)" if minus_live else ""
-        lines.append(f"最新 WR-: {disp_minus:.1f}%{suffix}")
+        lines.append(f"最新 WR θ-: {disp_minus:.1f}%{suffix}")
     if disp_pm is not None:
         if pm_live and pm_finished is not None and pm_total is not None:
             suffix = f" (進行中: {pm_finished}/{pm_total})"
         else:
             suffix = " (進行中)" if pm_live else ""
-        lines.append(f"最新 WR+vs-: {disp_pm:.1f}%{suffix}")
+        lines.append(f"最新 WR θ+ vs θ-: {disp_pm:.1f}%{suffix}")
     lines.append(f"現在θ: {current}")
 
     return "\n".join(lines)
