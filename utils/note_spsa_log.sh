@@ -90,7 +90,13 @@ def extract_section_pct(section_text):
     if not section_text:
         return None, False, None, None
 
-    games = re.findall(r'(\d+) of (\d+) games finished\.\n.*?\(([\d.]+)%\)', section_text, re.DOTALL)
+    # "n of m games finished." の直後に出る対局全体サマリ行だけを拾う
+    # Black vs White / playing Black|White は除外する
+    games = re.findall(
+        r'(\d+) of (\d+) games finished\.\n(?!Black vs White:)(?!.* playing (?:Black|White):).+ vs .+: \d+-\d+-\d+ \(([\d.]+)%\)',
+        section_text,
+        re.MULTILINE,
+    )
     if not games:
         return None, False, None, None
 
@@ -101,10 +107,18 @@ def extract_section_pct(section_text):
 
 def extract_last_completed_wr(log_text):
     wr_sep = re.findall(r'win_rate\+=([\d.]+), win_rate-=([\d.]+)', log_text)
-    if not wr_sep:
-        return None, None
-    p, m = wr_sep[-1]
-    return float(p) * 100.0, float(m) * 100.0
+    wr_pm = re.findall(r'win_rate\(\+vs-\)=([\d.]+)', log_text)
+
+    plus = None
+    minus = None
+    pm = None
+    if wr_sep:
+        p, m = wr_sep[-1]
+        plus = float(p) * 100.0
+        minus = float(m) * 100.0
+    if wr_pm:
+        pm = float(wr_pm[-1]) * 100.0
+    return plus, minus, pm
 
 plus_section = extract_section(current_block, 'Playing theta+ match', ['Playing theta- match', 'Playing theta+ vs theta- match'])
 minus_section = extract_section(current_block, 'Playing theta- match', ['Playing theta+ vs theta- match'])
@@ -114,7 +128,7 @@ plus_pct, plus_done, plus_finished, plus_total = extract_section_pct(plus_sectio
 minus_pct, minus_done, minus_finished, minus_total = extract_section_pct(minus_section)
 pm_pct, pm_done, pm_finished, pm_total = extract_section_pct(pm_section)
 
-base_plus, base_minus = extract_last_completed_wr(text)
+base_plus, base_minus, base_pm = extract_last_completed_wr(text)
 
 phase_positions = []
 for phase_name, token in [
@@ -130,8 +144,10 @@ current_phase = max(phase_positions)[1] if phase_positions else None
 
 disp_plus = plus_pct if plus_pct is not None else base_plus
 disp_minus = minus_pct if minus_pct is not None else base_minus
+disp_pm = pm_pct if pm_pct is not None else base_pm
 plus_live = False
 minus_live = False
+pm_live = False
 
 if current_phase == 'plus' and plus_pct is not None and not plus_done:
     disp_plus = plus_pct
@@ -143,10 +159,8 @@ elif current_phase == 'minus':
         disp_minus = minus_pct
         minus_live = not minus_done
 elif current_phase == 'pm' and pm_pct is not None:
-    disp_plus = pm_pct
-    disp_minus = 100.0 - pm_pct
-    plus_live = not pm_done
-    minus_live = not pm_done
+    disp_pm = pm_pct
+    pm_live = not pm_done
 
 lines = ['SPSA最適化ログ', f'完了: {completed} iterations']
 if disp_plus is not None:
@@ -161,6 +175,12 @@ if disp_minus is not None:
     else:
         suffix = ' (進行中)' if minus_live else ''
     lines.append(f'最新 WR-: {disp_minus:.1f}%{suffix}')
+if disp_pm is not None:
+    if pm_live and pm_finished is not None and pm_total is not None:
+        suffix = f' (進行中: {pm_finished}/{pm_total})'
+    else:
+        suffix = ' (進行中)' if pm_live else ''
+    lines.append(f'最新 WR+vs-: {disp_pm:.1f}%{suffix}')
 lines.append(f'現在θ: {current}')
 print('\n'.join(lines))
 PY
