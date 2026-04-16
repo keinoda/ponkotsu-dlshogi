@@ -417,32 +417,30 @@ def plot_params_detail(records, init_params, output_path):
     table.scale(1, 1.4)
     ax.set_title('ベストパラメータ比較', fontsize=12, pad=20)
 
-    # --- 下段右: パラメータ値 vs 勝率 散布図 (全パラメータ正規化重ね) ---
+    # --- 下段右: 中心θ近傍の平均勝率推移 ---
     ax = axes[3, 1]
-    RANGES = {
-        'C_init': (100, 200), 'C_base': (20000, 50000), 'C_fpu_reduction': (0, 40),
-        'C_init_root': (100, 200), 'C_base_root': (20000, 50000), 'Softmax_Temperature': (100, 200),
-    }
-    colors_p = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
-    for pi, pname in enumerate(PARAM_NAMES):
-        xs = []
-        ys = []
-        for r in records:
-            lo, hi = RANGES.get(pname, (0, 1))
-            if r['win_rate_plus'] is not None:
-                v = r['theta_plus'].get(pname, 0)
-                xs.append((v - lo) / (hi - lo))
-                ys.append(r['win_rate_plus'] * 100)
-            if r['win_rate_minus'] is not None:
-                v = r['theta_minus'].get(pname, 0)
-                xs.append((v - lo) / (hi - lo))
-                ys.append(r['win_rate_minus'] * 100)
-        ax.scatter(xs, ys, color=colors_p[pi], alpha=0.6, s=20, label=pname)
+    avg_iters = []
+    avg_wrs = []
+    for r in records:
+        if r['win_rate_plus'] is not None and r['win_rate_minus'] is not None:
+            avg_iters.append(r['iteration'])
+            avg_wrs.append((r['win_rate_plus'] + r['win_rate_minus']) / 2 * 100)
+    ax.plot(avg_iters, avg_wrs, 'o-', color='#2ca02c', markersize=5, label='(WR+ + WR-) / 2')
+    # 移動平均 (3点)
+    if len(avg_wrs) >= 3:
+        ma = []
+        for i in range(len(avg_wrs)):
+            start = max(0, i - 1)
+            end = min(len(avg_wrs), i + 2)
+            ma.append(sum(avg_wrs[start:end]) / (end - start))
+        ax.plot(avg_iters, ma, '-', color='red', linewidth=2, alpha=0.7, label='移動平均(3)')
     ax.axhline(y=50, color='gray', linestyle='--', linewidth=1, alpha=0.7)
-    ax.set_xlabel('正規化パラメータ値 [0, 1]')
+    ax.set_xlabel('Iteration')
     ax.set_ylabel('勝率 (%)')
-    ax.set_title('パラメータ値 vs 勝率 (正規化)')
-    ax.legend(fontsize=7, loc='best', ncol=2)
+    ax.set_title('中心θ近傍の平均勝率')
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
