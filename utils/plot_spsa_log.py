@@ -366,41 +366,56 @@ def plot_params_detail(records, init_params, output_path):
         ax.grid(True, alpha=0.3)
         ax.xaxis.set_major_locator(MaxNLocator(integer=True, min_n_ticks=1))
 
-    # --- 下段左: ベスト θ+ パラメータ ---
+    # --- 下段左: ベストパラメータ比較 ---
     ax = axes[3, 0]
     ax.axis('off')
 
-    # θ+/θ- の全データ点を収集して最良を特定
+    # 全イテレーションの θ+/θ- から勝率が高い方を選び、全体ベストを特定
     best_wr = -1
     best_params = {}
-    best_label = ''
     for r in records:
         if r['win_rate_plus'] is not None and r['win_rate_plus'] > best_wr:
             best_wr = r['win_rate_plus']
             best_params = r['theta_plus']
-            best_label = f"Iter {r['iteration']} θ+"
         if r['win_rate_minus'] is not None and r['win_rate_minus'] > best_wr:
             best_wr = r['win_rate_minus']
             best_params = r['theta_minus']
-            best_label = f"Iter {r['iteration']} θ-"
 
-    table_data = [[f'{best_label}', f'{best_wr*100:.1f}%', '', '']]
-    table_data.append(['', '', '', ''])
+    # 最新完了イテレーションの θ+/θ- から勝率が高い方を選ぶ
+    last_completed = completed[-1] if completed else None
+    last_wr = -1
+    last_params = {}
+    if last_completed:
+        lr = next((r for r in records if r['iteration'] == last_completed['iteration']), None)
+        if lr:
+            if lr['win_rate_plus'] is not None and lr['win_rate_plus'] > last_wr:
+                last_wr = lr['win_rate_plus']
+                last_params = lr['theta_plus']
+            if lr['win_rate_minus'] is not None and lr['win_rate_minus'] > last_wr:
+                last_wr = lr['win_rate_minus']
+                last_params = lr['theta_minus']
+
+    table_data = []
     for pname in PARAM_NAMES:
         iv = init_params.get(pname, '-')
-        bv = best_params.get(pname, '-')
-        cv = completed[-1]['theta'].get(pname, '-') if completed else '-'
+        bv = best_params.get(pname, '-') if best_params else '-'
+        cv = last_params.get(pname, '-') if last_params else '-'
         table_data.append([pname, str(iv), str(bv), str(cv)])
+    # 勝率比較行
+    wr_best_str = f'{best_wr*100:.1f}%' if best_wr >= 0 else '-'
+    wr_latest_str = f'{last_wr*100:.1f}%' if last_wr >= 0 else '-'
+    table_data.append(['勝率(vs base)', '-', wr_best_str, wr_latest_str])
+
     table = ax.table(
         cellText=table_data,
-        colLabels=['パラメータ', '初期値', 'ベスト評価', '最新θ'],
+        colLabels=['パラメータ', '初期値', 'ベスト', '最新θ'],
         loc='center',
         cellLoc='center',
     )
     table.auto_set_font_size(False)
     table.set_fontsize(9)
     table.scale(1, 1.4)
-    ax.set_title('ベストパラメータ', fontsize=12, pad=20)
+    ax.set_title('ベストパラメータ比較', fontsize=12, pad=20)
 
     # --- 下段右: パラメータ値 vs 勝率 散布図 (全パラメータ正規化重ね) ---
     ax = axes[3, 1]
