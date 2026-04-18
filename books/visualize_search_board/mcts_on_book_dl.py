@@ -7,6 +7,8 @@ import pickle
 import random
 import tqdm
 
+TEST_KEY = 10085123570264691767
+
 c_puct = 0.1
 
 def score_to_value(score, a=756.0864962951762):
@@ -283,6 +285,7 @@ if __name__ == "__main__":
     book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
     book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
     book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
+    print(f"TEST_KEY in book_tree: {TEST_KEY in book_tree}")
 
     # 反転が含まれていなければ追加する
     book_tree_rotated = dict()
@@ -299,6 +302,7 @@ if __name__ == "__main__":
             book_tree_rotated[rotated_board_key].child_score_sum = np.zeros(len(book_tree[key].child_move), dtype=np.float32)
 
     book_tree.update(book_tree_rotated)
+    print(f"TEST_KEY in book_tree: {TEST_KEY in book_tree}")
 
     # DLで評価したノードを読み込む
     with open(args.dl_pickle, "rb") as f:
