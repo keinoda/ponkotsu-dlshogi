@@ -143,6 +143,10 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                     current_key = next_board_key
 
                     if current_key not in book_tree:
+                        # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
+                        next_board.pop()
+                        next_board_key = next_board.zobrist_hash()
+                        current_key = next_board_key
                         break
 
                     current_node = book_tree[next_board_key]
