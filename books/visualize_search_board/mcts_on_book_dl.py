@@ -174,7 +174,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         current_node.board = next_board # history保持のためboardごとコピーする
         root_board_val *= -1
 
-    print(f"Selected root board: {next_board.sfen()}", current_key in book_tree)
+    print(f"Selected root board: {next_board.sfen()}", current_key in book_tree, current_key)
     first_board = next_board
     first_board_key = current_key
     return first_board, first_board_key
