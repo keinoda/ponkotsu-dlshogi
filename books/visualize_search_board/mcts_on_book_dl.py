@@ -286,7 +286,7 @@ if __name__ == "__main__":
     book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
     book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
     print(f"TEST_KEY in book_tree: {TEST_KEY in book_tree}")
-    print(book_tree[TEST_KEY].child_move)
+    print(book_tree[TEST_KEY].child_move, book_tree[TEST_KEY].board.sfen())
 
     # 反転が含まれていなければ追加する
     book_tree_rotated = dict()
