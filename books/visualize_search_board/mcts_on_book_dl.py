@@ -161,9 +161,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         next_board_key = next_board.zobrist_hash()
         current_key = next_board_key
         if current_key in book_tree:
-            next_board_without_movenum = " ".join(next_board.sfen().split(" ")[:-1])
-            book_tree_board_without_movenum = " ".join(book_tree[current_key].board.sfen().split(" ")[:-1])
-            print(next_board_without_movenum, book_tree_board_without_movenum, next_board_without_movenum==book_tree_board_without_movenum)
+            print(current_key)
         if current_key not in book_tree:
             # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
             next_board.pop()
