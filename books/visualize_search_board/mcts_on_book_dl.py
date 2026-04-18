@@ -7,9 +7,6 @@ import pickle
 import random
 import tqdm
 
-TEST_KEY = 14691390630515378322
-TEST_SFEN = "l7l/1r3k3/p1nsp1bpp/9/3P3P1/PPpSP4/3G4P/2K3+p2/LN1G3NL b B2GNPr2s5p"
-
 c_puct = 0.1
 
 def score_to_value(score, a=756.0864962951762):
@@ -124,7 +121,6 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         best_move = current_node.child_move[best_child_index]
         next_board = current_node.board.copy()
         next_board.push_usi(best_move)
-        print(next_board.zobrist_hash() == TEST_KEY)
 
         # 千日手のとき千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
         if eval_diff == 0 and next_board.is_draw() == REPETITION_DRAW:
@@ -174,7 +170,6 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         current_node.board = next_board # history保持のためboardごとコピーする
         root_board_val *= -1
 
-    print(f"Selected root board: {next_board.sfen()}", current_key in book_tree, current_key)
     first_board = next_board
     first_board_key = current_key
     return first_board, first_board_key
