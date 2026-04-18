@@ -174,6 +174,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         current_node.board = next_board # history保持のためboardごとコピーする
         root_board_val *= -1
 
+    print(f"Selected root board: {next_board.sfen()}")
     first_board = next_board
     first_board_key = current_key
     return first_board, first_board_key
@@ -285,8 +286,6 @@ if __name__ == "__main__":
     book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
     book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
     book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
-    print(f"TEST_KEY in book_tree: {TEST_KEY in book_tree}")
-    print(book_tree[TEST_KEY].child_move, book_tree[TEST_KEY].board.sfen())
 
     # 反転が含まれていなければ追加する
     book_tree_rotated = dict()
