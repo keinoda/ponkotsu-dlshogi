@@ -7,7 +7,7 @@ import pickle
 import random
 import tqdm
 
-TEST_KEY = 10085123570264691767
+TEST_KEY = 14691390630515378322
 TEST_SFEN = "l7l/1r3k3/p1nsp1bpp/9/3P3P1/PPpSP4/3G4P/2K3+p2/LN1G3NL b B2GNPr2s5p"
 
 c_puct = 0.1
@@ -124,6 +124,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         best_move = current_node.child_move[best_child_index]
         next_board = current_node.board.copy()
         next_board.push_usi(best_move)
+        print(next_board.zobrist_hash() == TEST_KEY)
 
         # 千日手のとき千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
         if eval_diff == 0 and next_board.is_draw() != NOT_REPETITION:
@@ -163,8 +164,6 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
 
         next_board_key = next_board.zobrist_hash()
         current_key = next_board_key
-        if current_key in book_tree:
-            print(current_key)
         if current_key not in book_tree:
             # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
             next_board.pop()
@@ -287,7 +286,6 @@ if __name__ == "__main__":
     book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
     book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
     book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
-    print(TEST_KEY in book_tree, TEST_SFEN in book_tree[TEST_KEY].board.sfen(), book_tree[TEST_KEY].board.sfen())
 
     # 反転が含まれていなければ追加する
     book_tree_rotated = dict()
