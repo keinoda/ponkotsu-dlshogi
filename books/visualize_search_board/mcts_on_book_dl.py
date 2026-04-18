@@ -372,7 +372,7 @@ if __name__ == "__main__":
     moves_list = []
     for _, key in move_count_list:
         sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
-        if args.boards and os.path.exists(args.boards):
+        if args.boards:
             history = " ".join([cshogi.move_to_usi(move) for move in dl_data_tree[key].board.history])
             history_len = len(dl_data_tree[key].board.history)
             current_sfen = dl_data_tree[key].board.sfen()
@@ -388,6 +388,6 @@ if __name__ == "__main__":
     with open(args.first_board_sfen_output, "w") as f:
         f.writelines(first_board_sfen_list)
 
-    if args.boards and os.path.exists(args.boards):
+    if args.boards:
         with open(args.boards, "w") as f:
             f.writelines(moves_list)
