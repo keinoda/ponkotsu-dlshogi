@@ -375,12 +375,8 @@ if __name__ == "__main__":
         if args.boards:
             board = dl_data_tree[key].board.copy()
             history = " ".join([cshogi.move_to_usi(move) for move in board.history])
-            history_len = len(board.history)
             current_sfen = board.sfen()
-            for i in range(history_len):
-                board.pop()
-            start_sfen = board.sfen()
-            moves_list.append(f"{current_sfen}, startpos {start_sfen} moves {history}\n")
+            moves_list.append(f"{current_sfen}, {history}\n")
 
     sfens_list += bestmove_board_sfen_list
     with open(args.sfens, "w") as f:
