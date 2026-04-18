@@ -127,7 +127,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         print(next_board.zobrist_hash() == TEST_KEY)
 
         # 千日手のとき千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
-        if eval_diff == 0 and next_board.is_draw() != NOT_REPETITION:
+        if eval_diff == 0 and next_board.is_draw() == REPETITION_DRAW:
             if not detour_applied:
                 detour = pick_repetition_detour(path_entries, next_board.zobrist_hash())
                 if detour is not None:
