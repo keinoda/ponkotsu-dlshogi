@@ -373,7 +373,12 @@ if __name__ == "__main__":
     for _, key in move_count_list:
         sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
         if args.boards and os.path.exists(args.boards):
-            moves_list.append(dl_data_tree[key].board.history)
+            history = " ".join([cshogi.move_to_usi(move) for move in dl_data_tree[key].board.history])
+            current_sfen = dl_data_tree[key].board.sfen()
+            for i in range(len(history)):
+                dl_data_tree[key].board.pop()
+            start_sfen = dl_data_tree[key].board.sfen()
+            moves_list.append(f"{current_sfen}, start pos {start_sfen} moves {history}\n")
 
     sfens_list += bestmove_board_sfen_list
     with open(args.sfens, "w") as f:
@@ -383,5 +388,5 @@ if __name__ == "__main__":
         f.writelines(first_board_sfen_list)
 
     if args.boards and os.path.exists(args.boards):
-        with open(args.boards, "wb") as f:
-            pickle.dump(moves_list, f)
+        with open(args.boards, "w") as f:
+            f.writelines(moves_list)
