@@ -33,6 +33,7 @@ def backup(node):
     node.child_q = node.child_score_sum / node.child_move_count
 
 book_tree = dict()
+book_child_depth_tree = dict()
 dl_data_tree = dict()
 depth0_count = 0
 
@@ -54,7 +55,8 @@ class Node:
 
 
 def pick_repetition_detour(path_entries, repeated_key):
-    # 千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
+    # 千日手ルート内の全候補手から、合法手かつ再千日手にならない代替手を選ぶ
+    # 候補は「最善手との差分が最小」を優先し、同点時はより深い局面を優先する
     cycle_start = 0
     for index, entry in enumerate(path_entries):
         if entry["key"] == repeated_key:
@@ -63,19 +65,38 @@ def pick_repetition_detour(path_entries, repeated_key):
 
     best_choice = None
     best_diff = None
-    for entry in path_entries[cycle_start:]:
+    best_depth = None
+    for depth, entry in enumerate(path_entries[cycle_start:], start=cycle_start):
         node = entry["node"]
         if not node.child_move or len(node.child_move) < 2:
             continue
+
+        node_child_depth = book_child_depth_tree.get(entry["key"])
+        legal_usi = {cshogi.move_to_usi(move) for move in node.board.legal_moves}
 
         best_score = node.child_score[0]
         for child_index, score in enumerate(node.child_score):
             if child_index == 0:
                 continue
+
+            candidate_move = node.child_move[child_index]
+            if candidate_move not in legal_usi:
+                continue
+
+            candidate_board = node.board.copy()
+            candidate_board.push_usi(candidate_move)
+            candidate_depth = None
+            if node_child_depth is not None and child_index < len(node_child_depth):
+                candidate_depth = node_child_depth[child_index]
+
+            if candidate_depth == 9999 or candidate_board.is_draw() == REPETITION_DRAW:
+                continue
+
             diff = abs(float(score) - float(best_score))
-            if best_diff is None or diff < best_diff:
+            if best_diff is None or diff < best_diff or (diff == best_diff and (best_depth is None or depth > best_depth)):
                 best_diff = diff
-                best_choice = (entry, child_index)
+                best_depth = depth
+                best_choice = (entry, child_index, candidate_board)
 
     return best_choice
 
@@ -127,7 +148,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
             if not detour_applied:
                 detour = pick_repetition_detour(path_entries, next_board.zobrist_hash())
                 if detour is not None:
-                    detour_entry, detour_child_index = detour
+                    detour_entry, detour_child_index, detour_board = detour
                     detour_node = detour_entry["node"]
                     detour_key = detour_entry["key"]
                     detour_move = detour_node.child_move[detour_child_index]
@@ -137,8 +158,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                         f"(score={detour_node.child_score[detour_child_index]}, best={detour_node.child_score[0]})"
                     )
 
-                    next_board = detour_node.board.copy()
-                    next_board.push_usi(detour_move)
+                    next_board = detour_board
                     next_board_key = next_board.zobrist_hash()
                     current_key = next_board_key
 
@@ -272,11 +292,21 @@ if __name__ == "__main__":
             board_key = board.zobrist_hash()
             book_tree[board_key] = Node()
             book_tree[board_key].board = board.copy()
+            book_child_depth_tree[board_key] = []
         else:
             next_move_info = book.strip().split(" ")
             move_usi = next_move_info[0]
             book_tree[board_key].child_move.append(move_usi)
             book_tree[board_key].child_score.append(int(next_move_info[2]))
+
+            move_depth = None
+            for token in next_move_info[3:]:
+                try:
+                    move_depth = int(token)
+                    break
+                except ValueError:
+                    continue
+            book_child_depth_tree[board_key].append(move_depth)
 
     book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
     book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
@@ -295,6 +325,7 @@ if __name__ == "__main__":
             book_tree_rotated[rotated_board_key].child_move_count = np.zeros(len(book_tree[key].child_move))
             book_tree_rotated[rotated_board_key].child_score = -book_tree[key].child_score
             book_tree_rotated[rotated_board_key].child_score_sum = np.zeros(len(book_tree[key].child_move), dtype=np.float32)
+            book_child_depth_tree[rotated_board_key] = list(book_child_depth_tree.get(key, []))
 
     book_tree.update(book_tree_rotated)
 
