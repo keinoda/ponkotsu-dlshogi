@@ -55,24 +55,19 @@ class Node:
 
 
 def pick_repetition_detour(path_entries, repeated_key):
-    # 千日手ルート内の全候補手から、合法手かつ再千日手にならない代替手を選ぶ
+    # 指定局面から辿った全経路の候補手から、合法手かつ depth!=9999 の代替手を選ぶ
     # 候補は「最善手との差分が最小」を優先し、同点時はより深い局面を優先する
-    cycle_start = 0
-    for index, entry in enumerate(path_entries):
-        if entry["key"] == repeated_key:
-            cycle_start = index
-            break
-
     best_choice = None
     best_diff = None
     best_depth = None
-    for depth, entry in enumerate(path_entries[cycle_start:], start=cycle_start):
+    for depth, entry in enumerate(path_entries):
         node = entry["node"]
+        entry_board = entry["board_snapshot"]
         if not node.child_move or len(node.child_move) < 2:
             continue
 
         node_child_depth = book_child_depth_tree.get(entry["key"])
-        legal_usi = {cshogi.move_to_usi(move) for move in node.board.legal_moves}
+        legal_usi = {cshogi.move_to_usi(move) for move in entry_board.legal_moves}
 
         best_score = node.child_score[0]
         for child_index, score in enumerate(node.child_score):
@@ -83,13 +78,13 @@ def pick_repetition_detour(path_entries, repeated_key):
             if candidate_move not in legal_usi:
                 continue
 
-            candidate_board = node.board.copy()
+            candidate_board = entry_board.copy()
             candidate_board.push_usi(candidate_move)
             candidate_depth = None
             if node_child_depth is not None and child_index < len(node_child_depth):
                 candidate_depth = node_child_depth[child_index]
 
-            if candidate_depth == 9999 or candidate_board.is_draw() == REPETITION_DRAW:
+            if candidate_depth == 9999:
                 continue
 
             diff = abs(float(score) - float(best_score))
@@ -113,7 +108,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
     path_entries = []
     detour_applied = False
     while True:
-        path_entries.append({"key": current_key, "node": current_node})
+        path_entries.append({"key": current_key, "node": current_node, "board_snapshot": current_node.board.copy()})
 
         # policyの上位何手でval_sum_thresholdを超えるか確認する
         child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
@@ -172,7 +167,10 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                     current_node = book_tree[next_board_key]
                     current_node.board = next_board  # history保持のためboardごとコピーする
                     detour_applied = True
-                    path_entries = [{"key": detour_key, "node": detour_node}, {"key": current_key, "node": current_node}]
+                    path_entries = [
+                        {"key": detour_key, "node": detour_node, "board_snapshot": detour_node.board.copy()},
+                        {"key": current_key, "node": current_node, "board_snapshot": current_node.board.copy()},
+                    ]
                     continue
 
             print("Repetition detected but no detour candidate found. Stop at current board.")
