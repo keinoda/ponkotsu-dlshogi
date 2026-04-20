@@ -16,7 +16,15 @@ try:
     _HAS_CYTHON = True
 except ImportError:
     _HAS_CYTHON = False
+
+try:
+    import mcts_cpp
+    _HAS_CPP = True
+except ImportError:
+    _HAS_CPP = False
+
 USE_CYTHON = False
+USE_CPP = False
 
 c_puct = 0.1
 
@@ -468,11 +476,18 @@ if __name__ == "__main__":
     args.add_argument('--debug-trace-file', type=str, default='mcts_debug_trace.log')
     args.add_argument('--use-cshogi-is-draw', action='store_true')
     args.add_argument('--rotated-dl-share-stats', action='store_true')
+    args.add_argument('--use-cpp', action='store_true')
     args.add_argument('--use-cython', action='store_true')
     args.add_argument('--visited-nodes-limit', type=int, default=1000 * 10)
     args = args.parse_args()
 
-    if args.use_cython:
+    if args.use_cpp:
+        if _HAS_CPP:
+            USE_CPP = True
+        else:
+            print("WARNING: --use-cpp specified but mcts_cpp not found. Falling back to pure Python.")
+
+    if args.use_cython and not USE_CPP:
         if _HAS_CYTHON:
             USE_CYTHON = True
         else:
@@ -543,7 +558,12 @@ if __name__ == "__main__":
     with open(args.dl_pickle, "rb") as f:
         dl_data_tree = pickle.load(f)
 
-    if USE_CYTHON:
+    if USE_CPP:
+        mcts_cpp.init(dl_data_tree, book_tree, visited_nodes,
+                      USE_CSHOGI_IS_DRAW, get_dl_node, get_book_node, Node)
+        search_func = mcts_cpp.search_cpp
+        print("Using C++-optimized MCTS")
+    elif USE_CYTHON:
         mcts_core.init(dl_data_tree, book_tree, visited_nodes,
                        USE_CSHOGI_IS_DRAW, get_dl_node, get_book_node, Node)
         search_func = mcts_core.search_cy

@@ -1,3 +1,4 @@
 cshogi
 flask
 watchdog
+pybind11
