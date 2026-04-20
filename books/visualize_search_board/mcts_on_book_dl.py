@@ -8,7 +8,15 @@ import pickle
 import random
 import signal
 import sys
+import time
 import tqdm
+
+try:
+    import mcts_core
+    _HAS_CYTHON = True
+except ImportError:
+    _HAS_CYTHON = False
+USE_CYTHON = False
 
 c_puct = 0.1
 
@@ -460,7 +468,15 @@ if __name__ == "__main__":
     args.add_argument('--debug-trace-file', type=str, default='mcts_debug_trace.log')
     args.add_argument('--use-cshogi-is-draw', action='store_true')
     args.add_argument('--rotated-dl-share-stats', action='store_true')
+    args.add_argument('--use-cython', action='store_true')
+    args.add_argument('--visited-nodes-limit', type=int, default=1000 * 10)
     args = args.parse_args()
+
+    if args.use_cython:
+        if _HAS_CYTHON:
+            USE_CYTHON = True
+        else:
+            print("WARNING: --use-cython specified but mcts_core not found. Falling back to pure Python.")
 
     ROTATED_DL_SHARE_STATS = args.rotated_dl_share_stats
     USE_CSHOGI_IS_DRAW = args.use_cshogi_is_draw
@@ -527,6 +543,15 @@ if __name__ == "__main__":
     with open(args.dl_pickle, "rb") as f:
         dl_data_tree = pickle.load(f)
 
+    if USE_CYTHON:
+        mcts_core.init(dl_data_tree, book_tree, visited_nodes,
+                       USE_CSHOGI_IS_DRAW, get_dl_node, get_book_node, Node)
+        search_func = mcts_core.search_cy
+        print("Using Cython-optimized MCTS")
+    else:
+        search_func = search
+        print("Using pure Python MCTS")
+
     # ルート局面から定跡ツリー上で最善手を辿り、登録されている候補手が閾値を初めて下回った局面をfirst_boardとする
     root_board_sfen_list = ['']
     for root_sfens in args.root_sfens:
@@ -562,15 +587,18 @@ if __name__ == "__main__":
 
         count = 0
         print("Starting search...")
+        search_start = time.time()
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
-            search(first_dl_node)
+            search_func(first_dl_node)
             pbar.update(1)
             count += 1
         pbar.close()
+        search_elapsed = time.time() - search_start
+        print(f"Search: {search_elapsed:.2f}s ({playout_num/search_elapsed:.0f} playouts/sec)")
 
     cnt = 0
-    while len(visited_nodes) < 1000 * 10:
+    while len(visited_nodes) < args.visited_nodes_limit:
         cnt += 1
         if cnt % 2 == 0:
             turn = BLACK
@@ -599,12 +627,15 @@ if __name__ == "__main__":
 
         count = 0
         print("Starting search...")
+        search_start = time.time()
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
-            search(first_dl_node)
+            search_func(first_dl_node)
             pbar.update(1)
             count += 1
         pbar.close()
+        search_elapsed = time.time() - search_start
+        print(f"Search: {search_elapsed:.2f}s ({playout_num/search_elapsed:.0f} playouts/sec)")
 
     print(f"visited_nodes: {len(visited_nodes)}")
     move_count_list = [(dl_data_tree[key].move_count, key) for key in visited_nodes]
