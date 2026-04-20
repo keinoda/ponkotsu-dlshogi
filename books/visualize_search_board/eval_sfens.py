@@ -70,7 +70,6 @@ if __name__ == "__main__":
     with open(args.book, "r") as f:
         lines = f.readlines()
         eval_sfen_list = [" ".join(line.split()[1:]).replace("\n", "") for line in lines if "sfen" in line]
-        eval_sfen_list += [cshogi.rotate_sfen(sfen) for sfen in eval_sfen_list]
 
     out = eval_sfens(session, eval_sfen_list, batch_size, out)
 
