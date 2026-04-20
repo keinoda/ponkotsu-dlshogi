@@ -40,11 +40,21 @@ book_child_depth_tree = dict()
 dl_data_tree = dict()
 depth0_count = 0
 DEBUG_MODE = False
+DEBUG_SKIP_IS_DRAW = False
+DEBUG_TRACE_FILE = None
 
 
 def debug_log(message):
     if DEBUG_MODE:
         print(f"[DEBUG] {message}")
+
+
+def debug_trace(message):
+    if not DEBUG_MODE or DEBUG_TRACE_FILE is None:
+        return
+    with open(DEBUG_TRACE_FILE, "a") as f:
+        f.write(message + "\n")
+        f.flush()
 
 
 def to_move_int(move):
@@ -72,6 +82,20 @@ def safe_push(board, move, context):
                 f"Illegal move at {context}: move={move_int}({move_usi}), turn={board.turn}, sfen={board.sfen()}"
             )
     board.push(move_int)
+
+
+def safe_is_draw(board, context):
+    if DEBUG_SKIP_IS_DRAW:
+        return NOT_REPETITION
+
+    debug_trace(
+        "before_is_draw"
+        f" context={context}"
+        f" ply={len(board.history)}"
+        f" turn={board.turn}"
+        f" sfen={board.sfen()}"
+    )
+    return board.is_draw()
 
 
 class Node:
@@ -333,7 +357,7 @@ def search(node):
     next_board_key = next_board.zobrist_hash()
 
     # 引き分けの判定
-    draw = next_board.is_draw()
+    draw = safe_is_draw(next_board, "search")
     if draw != NOT_REPETITION:
         if draw == REPETITION_DRAW:
             # 千日手
@@ -400,9 +424,13 @@ if __name__ == "__main__":
     args.add_argument('--eval_diff', type=int, default=30)
     args.add_argument('--first_board_sfen_output', type=str, default='first_board_sfens.txt')
     args.add_argument('--debug', action='store_true')
+    args.add_argument('--debug-skip-is-draw', action='store_true')
+    args.add_argument('--debug-trace-file', type=str, default='mcts_debug_trace.log')
     args = args.parse_args()
 
+    DEBUG_SKIP_IS_DRAW = args.debug_skip_is_draw
     DEBUG_MODE = args.debug
+    DEBUG_TRACE_FILE = args.debug_trace_file if args.debug else None
     if DEBUG_MODE:
         faulthandler.enable(all_threads=True)
         try:
@@ -410,6 +438,11 @@ if __name__ == "__main__":
         except Exception:
             pass
         debug_log("Debug mode is enabled")
+        if DEBUG_SKIP_IS_DRAW:
+            debug_log("is_draw checks are skipped (--debug-skip-is-draw)")
+        if DEBUG_TRACE_FILE is not None:
+            with open(DEBUG_TRACE_FILE, "w") as f:
+                f.write("start_debug_trace\n")
 
     with open(args.book, "r") as f:
         books = f.readlines()
