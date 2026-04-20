@@ -101,17 +101,6 @@ def safe_is_draw(board, context):
     return board.is_draw()
 
 
-def build_history_key_counts(board):
-    counts = {}
-    probe = board.copy()
-    counts[probe.zobrist_hash()] = counts.get(probe.zobrist_hash(), 0) + 1
-    while len(probe.history) > 0:
-        probe.pop()
-        key = probe.zobrist_hash()
-        counts[key] = counts.get(key, 0) + 1
-    return counts
-
-
 class Node:
     def __init__(self):
         self.board = None
@@ -372,7 +361,7 @@ visited_nodes = set()
 def search(node, path_key_counts=None):
     global depth0_count
     if path_key_counts is None:
-        path_key_counts = build_history_key_counts(node.board)
+        path_key_counts = {}
 
     node_key = node.board.zobrist_hash()
 
