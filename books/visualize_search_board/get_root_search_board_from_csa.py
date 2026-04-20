@@ -93,7 +93,7 @@ if __name__ == "__main__":
             if board_key in book_tree:
                 score_next = book_tree[board_key].child_score[0]
                 depth_next = book_tree[board_key].child_depth[0]
-                if score_now != score_next or depth_now != depth_next:
+                if score_now != score_next or (depth_now != depth_next and depth_next != 9999):
                     score_now = score_next
                     depth_now = depth_next
                     if abs(score_next) <= args.max_abs_score:
