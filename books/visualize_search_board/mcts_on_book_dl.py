@@ -1,10 +1,13 @@
 import argparse
 import cshogi
 from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR, BLACK, WHITE
+import faulthandler
 import numpy as np
 import os
 import pickle
 import random
+import signal
+import sys
 import tqdm
 
 c_puct = 0.1
@@ -36,6 +39,39 @@ book_tree = dict()
 book_child_depth_tree = dict()
 dl_data_tree = dict()
 depth0_count = 0
+DEBUG_MODE = False
+
+
+def debug_log(message):
+    if DEBUG_MODE:
+        print(f"[DEBUG] {message}")
+
+
+def to_move_int(move):
+    return int(move)
+
+
+def validate_move_usi(board, move_usi, context):
+    if not DEBUG_MODE:
+        return
+
+    legal_usi = {cshogi.move_to_usi(move) for move in board.legal_moves}
+    if move_usi not in legal_usi:
+        raise RuntimeError(
+            f"Illegal USI move at {context}: move={move_usi}, turn={board.turn}, sfen={board.sfen()}"
+        )
+
+
+def safe_push(board, move, context):
+    move_int = to_move_int(move)
+    if DEBUG_MODE:
+        legal_moves = set(to_move_int(m) for m in board.legal_moves)
+        if move_int not in legal_moves:
+            move_usi = cshogi.move_to_usi(move_int)
+            raise RuntimeError(
+                f"Illegal move at {context}: move={move_int}({move_usi}), turn={board.turn}, sfen={board.sfen()}"
+            )
+    board.push(move_int)
 
 
 class Node:
@@ -103,7 +139,7 @@ def build_rotated_dl_node(node):
         rotated_node.child_policy = None
         return rotated_node
 
-    rotated_node.child_move = [cshogi.move_rotate(move) for move in node.child_move]
+    rotated_node.child_move = [to_move_int(cshogi.move_rotate(to_move_int(move))) for move in node.child_move]
     rotated_node.child_move_count = np.zeros(len(rotated_node.child_move), dtype=np.float32)
     rotated_node.child_score_sum = np.zeros(len(rotated_node.child_move), dtype=np.float32)
     rotated_node.child_policy = np.array(node.child_policy, copy=True)
@@ -116,6 +152,8 @@ def get_dl_node(board):
     if node is not None:
         if not isinstance(node.board, cshogi.Board):
             node.board = board.copy()
+        if node.child_move is not None:
+            node.child_move = [to_move_int(move) for move in node.child_move]
         return board_key, node
 
     rotated_board = rotate(board)
@@ -155,6 +193,7 @@ def pick_repetition_detour(path_entries, repeated_key):
                 continue
 
             candidate_board = entry_board.copy()
+            validate_move_usi(candidate_board, candidate_move, "pick_repetition_detour")
             candidate_board.push_usi(candidate_move)
             candidate_depth = None
             if node_child_depth is not None and child_index < len(node_child_depth):
@@ -218,6 +257,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
 
         best_move = current_node.child_move[best_child_index]
         next_board = current_node.board.copy()
+        validate_move_usi(next_board, best_move, "select_root_board.best_move")
         next_board.push_usi(best_move)
 
         # 千日手のとき千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
@@ -289,7 +329,7 @@ def search(node):
     node.child_move_count[search_node] += 1
 
     next_board = node.board.copy()
-    next_board.push(node.child_move[search_node])
+    safe_push(next_board, node.child_move[search_node], "search.next_board")
     next_board_key = next_board.zobrist_hash()
 
     # 引き分けの判定
@@ -359,7 +399,17 @@ if __name__ == "__main__":
     args.add_argument('--book_moves_threshold', type=int, default=4)
     args.add_argument('--eval_diff', type=int, default=30)
     args.add_argument('--first_board_sfen_output', type=str, default='first_board_sfens.txt')
+    args.add_argument('--debug', action='store_true')
     args = args.parse_args()
+
+    DEBUG_MODE = args.debug
+    if DEBUG_MODE:
+        faulthandler.enable(all_threads=True)
+        try:
+            faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True)
+        except Exception:
+            pass
+        debug_log("Debug mode is enabled")
 
     with open(args.book, "r") as f:
         books = f.readlines()
