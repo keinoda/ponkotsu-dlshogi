@@ -42,6 +42,7 @@ depth0_count = 0
 DEBUG_MODE = False
 DEBUG_SKIP_IS_DRAW = False
 DEBUG_TRACE_FILE = None
+USE_CSHOGI_IS_DRAW = False
 
 
 def debug_log(message):
@@ -246,6 +247,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
     val_sum_threshold = 0.95
     next_board = current_node.board.copy()
     path_entries = []
+    seen_path_keys = {current_key}
     detour_applied = False
     while True:
         path_entries.append({"key": current_key, "node": current_node, "board_snapshot": current_node.board.copy()})
@@ -283,11 +285,12 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         next_board = current_node.board.copy()
         validate_move_usi(next_board, best_move, "select_root_board.best_move")
         next_board.push_usi(best_move)
+        next_board_key_in_path = next_board.zobrist_hash()
 
-        # 千日手のとき千日手ルート内の全候補手から、最善手(先頭)に最も近い評価値の代替手を選ぶ
-        if eval_diff == 0 and next_board.is_draw() == REPETITION_DRAW:
+        # 同一局面の再訪を千日手として扱い、最善手に近い代替手へ迂回する
+        if eval_diff == 0 and next_board_key_in_path in seen_path_keys:
             if not detour_applied:
-                detour = pick_repetition_detour(path_entries, next_board.zobrist_hash())
+                detour = pick_repetition_detour(path_entries, next_board_key_in_path)
                 if detour is not None:
                     detour_entry, detour_child_index, detour_board = detour
                     detour_node = detour_entry["node"]
@@ -317,6 +320,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                         {"key": detour_key, "node": detour_node, "board_snapshot": detour_node.board.copy()},
                         {"key": current_key, "node": current_node, "board_snapshot": current_node.board.copy()},
                     ]
+                    seen_path_keys = {detour_key, current_key}
                     continue
 
             print("Repetition detected but no detour candidate found. Stop at current board.")
@@ -332,6 +336,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
             break
         current_node = next_node
         current_node.board = next_board.copy() # history保持のためboardごとコピーする
+        seen_path_keys.add(current_key)
         root_board_val *= -1
 
     first_board = next_board
@@ -341,65 +346,81 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
 # DLで推論したツリー上でPV-MCTSを行う
 # valueについては定跡ツリーに登録されていれば定跡ツリー上の値を優先する
 visited_nodes = set()
-def search(node):
+def search(node, path_keys=None):
     global depth0_count
+    if path_keys is None:
+        path_keys = set()
+
+    node_key = node.board.zobrist_hash()
+    if node_key in path_keys:
+        # 同一探索経路で局面を再訪したら千日手として扱う
+        return 0.5
+
+    path_keys.add(node_key)
+
     node.move_count += 1
 
-    if not node.child_move:
-        visited_nodes.add(node.board.zobrist_hash())
-        return node.value
+    try:
+        if not node.child_move:
+            visited_nodes.add(node_key)
+            return node.value
 
-    search_node = select_max_ucb_child(node)
-    node.child_move_count[search_node] += 1
+        search_node = select_max_ucb_child(node)
+        node.child_move_count[search_node] += 1
 
-    next_board = node.board.copy()
-    safe_push(next_board, node.child_move[search_node], "search.next_board")
-    next_board_key = next_board.zobrist_hash()
+        next_board = node.board.copy()
+        safe_push(next_board, node.child_move[search_node], "search.next_board")
+        next_board_key = next_board.zobrist_hash()
 
-    # 引き分けの判定
-    draw = safe_is_draw(next_board, "search")
-    if draw != NOT_REPETITION:
-        if draw == REPETITION_DRAW:
+        # 同一探索経路で再訪したら千日手
+        if next_board_key in path_keys:
             # 千日手
             return 0.5
-        elif draw == REPETITION_WIN or draw == REPETITION_SUPERIOR:
-            # 連続王手の千日手で勝ちもしくは優越局面
-            return 1.0
-        else:
-            # 連続王手の千日手で負けもしくは劣等局面
-            return 0.0
 
-    # 次の局面が定跡ツリーに登録されていなければ定跡ツリーに追加する
-    if next_board_key not in dl_data_tree:
-        _, current_dl_node = get_dl_node(node.board)
-        if current_dl_node is None:
-            raise KeyError(f"Current board is not in dl_data_tree: {node.board.sfen()}")
+        # 互換性のため、必要時のみ cshogi 側の判定を使う
+        if USE_CSHOGI_IS_DRAW:
+            draw = safe_is_draw(next_board, "search")
+            if draw != NOT_REPETITION:
+                if draw == REPETITION_DRAW:
+                    return 0.5
+                elif draw == REPETITION_WIN or draw == REPETITION_SUPERIOR:
+                    return 1.0
+                else:
+                    return 0.0
 
-        dl_data_tree[next_board_key] = Node()
-        dl_data_tree[next_board_key].board = next_board.copy()
-        dl_data_tree[next_board_key].child_move = None
-        # 次の局面については未評価なので1-(現局面の評価値)で仮置きする
-        dl_data_tree[next_board_key].value = 1.0 - current_dl_node.value
+        # 次の局面が定跡ツリーに登録されていなければ定跡ツリーに追加する
+        if next_board_key not in dl_data_tree:
+            _, current_dl_node = get_dl_node(node.board)
+            if current_dl_node is None:
+                raise KeyError(f"Current board is not in dl_data_tree: {node.board.sfen()}")
 
-    # 次の局面が末端ノードの場合定跡ツリーに登録されているか確認し、登録されていれば定跡ツリーの値で置き換える
-    if not dl_data_tree[next_board_key].child_move:
-        _, current_book_node = get_book_node(node.board)
-        if current_book_node is not None and node.child_move[search_node] in current_book_node.child_move:
-            index = current_book_node.child_move.index(node.child_move[search_node])
-            dl_data_tree[next_board_key].value = 1.0 - score_to_value(current_book_node.child_score[index])
-        depth0_count += 1
+            dl_data_tree[next_board_key] = Node()
+            dl_data_tree[next_board_key].board = next_board.copy()
+            dl_data_tree[next_board_key].child_move = None
+            # 次の局面については未評価なので1-(現局面の評価値)で仮置きする
+            dl_data_tree[next_board_key].value = 1.0 - current_dl_node.value
 
-    _, next_node = get_dl_node(next_board)
-    if next_node is None:
-        raise KeyError(f"Next board is not in dl_data_tree: {next_board.sfen()}")
+        # 次の局面が末端ノードの場合定跡ツリーに登録されているか確認し、登録されていれば定跡ツリーの値で置き換える
+        if not dl_data_tree[next_board_key].child_move:
+            _, current_book_node = get_book_node(node.board)
+            if current_book_node is not None and node.child_move[search_node] in current_book_node.child_move:
+                index = current_book_node.child_move.index(node.child_move[search_node])
+                dl_data_tree[next_board_key].value = 1.0 - score_to_value(current_book_node.child_score[index])
+            depth0_count += 1
 
-    next_node.board = next_board # history保持のためboardごとコピーする
-    value = search(next_node)
-    value = 1.0 - value
+        _, next_node = get_dl_node(next_board)
+        if next_node is None:
+            raise KeyError(f"Next board is not in dl_data_tree: {next_board.sfen()}")
 
-    node.sum_value += value
-    node.child_score_sum[search_node] += value
-    return value
+        next_node.board = next_board # history保持のためboardごとコピーする
+        value = search(next_node, path_keys)
+        value = 1.0 - value
+
+        node.sum_value += value
+        node.child_score_sum[search_node] += value
+        return value
+    finally:
+        path_keys.remove(node_key)
 
 def get_history(node, history=None):
     if history is None:
@@ -426,8 +447,10 @@ if __name__ == "__main__":
     args.add_argument('--debug', action='store_true')
     args.add_argument('--debug-skip-is-draw', action='store_true')
     args.add_argument('--debug-trace-file', type=str, default='mcts_debug_trace.log')
+    args.add_argument('--use-cshogi-is-draw', action='store_true')
     args = args.parse_args()
 
+    USE_CSHOGI_IS_DRAW = args.use_cshogi_is_draw
     DEBUG_SKIP_IS_DRAW = args.debug_skip_is_draw
     DEBUG_MODE = args.debug
     DEBUG_TRACE_FILE = args.debug_trace_file if args.debug else None
@@ -440,6 +463,8 @@ if __name__ == "__main__":
         debug_log("Debug mode is enabled")
         if DEBUG_SKIP_IS_DRAW:
             debug_log("is_draw checks are skipped (--debug-skip-is-draw)")
+        if USE_CSHOGI_IS_DRAW:
+            debug_log("cshogi is_draw is enabled (--use-cshogi-is-draw)")
         if DEBUG_TRACE_FILE is not None:
             with open(DEBUG_TRACE_FILE, "w") as f:
                 f.write("start_debug_trace\n")
