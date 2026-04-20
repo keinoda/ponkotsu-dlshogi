@@ -570,7 +570,7 @@ if __name__ == "__main__":
         pbar.close()
 
     cnt = 0
-    while len(visited_nodes) < 1000 * 10:
+    while len(visited_nodes) < 1000 * 0:
         cnt += 1
         if cnt % 2 == 0:
             turn = BLACK
