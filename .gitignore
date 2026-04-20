@@ -4,3 +4,6 @@
 .venv*
 *.png
 *.txt
+*.csa
+*.sfens
+*.db
