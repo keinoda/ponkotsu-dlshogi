@@ -145,11 +145,11 @@ else
 fi
 
 echo ""
-echo "--- playouts/sec (ログから抽出) ---"
-PPS_PY=$(grep -o '[0-9]* playouts/sec' "$LOG_PY" | tail -1 || echo "N/A")
-PPS_CY=$(grep -o '[0-9]* playouts/sec' "$LOG_CY" | tail -1 || echo "N/A")
-echo "  Python : ${PPS_PY}"
-echo "  Cython : ${PPS_CY}"
+echo "--- Total search (ログから抽出) ---"
+TOTAL_PY=$(grep 'Total search:' "$LOG_PY" || echo "N/A")
+TOTAL_CY=$(grep 'Total search:' "$LOG_CY" || echo "N/A")
+echo "  Python : ${TOTAL_PY}"
+echo "  Cython : ${TOTAL_CY}"
 
 echo ""
 echo "============================================================"

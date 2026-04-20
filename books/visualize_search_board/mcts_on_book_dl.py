@@ -562,6 +562,8 @@ if __name__ == "__main__":
     first_board_sfen_list = []
     bestmove_board_sfen_list = []
     playout_num = 200000
+    total_playout_count = 0
+    search_total_start = time.time()
     for root_sfen in root_board_sfen_list:
         first_board, first_board_key = select_root_board(sfen=root_sfen, book_moves_threshold=args.book_moves_threshold)
         first_board_sfen_list.append(f"{first_board.sfen()}\n")
@@ -587,15 +589,13 @@ if __name__ == "__main__":
 
         count = 0
         print("Starting search...")
-        search_start = time.time()
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
             search_func(first_dl_node)
             pbar.update(1)
             count += 1
         pbar.close()
-        search_elapsed = time.time() - search_start
-        print(f"Search: {search_elapsed:.2f}s ({playout_num/search_elapsed:.0f} playouts/sec)")
+        total_playout_count += playout_num
 
     cnt = 0
     while len(visited_nodes) < args.visited_nodes_limit:
@@ -627,15 +627,16 @@ if __name__ == "__main__":
 
         count = 0
         print("Starting search...")
-        search_start = time.time()
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
             search_func(first_dl_node)
             pbar.update(1)
             count += 1
         pbar.close()
-        search_elapsed = time.time() - search_start
-        print(f"Search: {search_elapsed:.2f}s ({playout_num/search_elapsed:.0f} playouts/sec)")
+        total_playout_count += playout_num
+
+    search_total_elapsed = time.time() - search_total_start
+    print(f"Total search: {search_total_elapsed:.2f}s ({total_playout_count} playouts, {total_playout_count/search_total_elapsed:.0f} playouts/sec)")
 
     print(f"visited_nodes: {len(visited_nodes)}")
     move_count_list = [(dl_data_tree[key].move_count, key) for key in visited_nodes]
