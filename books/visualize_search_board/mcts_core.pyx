@@ -67,7 +67,7 @@ cpdef float search_cy(object node, object path_keys=None):
     if path_keys is None:
         path_keys = set()
 
-    cdef long long node_key = node.board.zobrist_hash()
+    node_key = node.board.zobrist_hash()
     if node_key in path_keys:
         return 0.5
 
@@ -76,7 +76,6 @@ cpdef float search_cy(object node, object path_keys=None):
 
     cdef float value
     cdef int search_idx
-    cdef long long next_board_key
     cdef int move_int
 
     try:
