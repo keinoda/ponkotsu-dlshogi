@@ -54,6 +54,80 @@ class Node:
         self.parent_key = None
 
 
+def build_rotated_book_node(node):
+    rotated_node = Node()
+    rotated_node.board = rotate(node.board).copy()
+    rotated_node.child_move = [
+        cshogi.to_usi(cshogi.move_rotate(node.board.move_from_usi(move))).decode()
+        for move in node.child_move
+    ]
+    rotated_node.child_move_count = np.zeros(len(rotated_node.child_move))
+    rotated_node.child_score = -np.array(node.child_score, dtype=np.float32, copy=True)
+    rotated_node.child_score_sum = np.zeros(len(rotated_node.child_move), dtype=np.float32)
+    return rotated_node
+
+
+def get_book_node(board):
+    board_key = board.zobrist_hash()
+    node = book_tree.get(board_key)
+    if node is not None:
+        return board_key, node
+
+    rotated_board = rotate(board)
+    rotated_board_key = rotated_board.zobrist_hash()
+    rotated_node = book_tree.get(rotated_board_key)
+    if rotated_node is None:
+        return board_key, None
+
+    node = build_rotated_book_node(rotated_node)
+    node.board = board.copy()
+    book_tree[board_key] = node
+    book_child_depth_tree[board_key] = list(book_child_depth_tree.get(rotated_board_key, []))
+    return board_key, node
+
+
+def build_rotated_dl_node(node):
+    base_board = node.board if isinstance(node.board, cshogi.Board) else cshogi.Board(sfen=node.board)
+    rotated_node = Node()
+    rotated_node.board = rotate(base_board).copy()
+    rotated_node.move_count = node.move_count
+    rotated_node.value = node.value
+    rotated_node.sum_value = node.sum_value
+
+    if node.child_move is None:
+        rotated_node.child_move = None
+        rotated_node.child_move_count = None
+        rotated_node.child_score_sum = None
+        rotated_node.child_policy = None
+        return rotated_node
+
+    rotated_node.child_move = [cshogi.move_rotate(move) for move in node.child_move]
+    rotated_node.child_move_count = np.array(node.child_move_count, copy=True)
+    rotated_node.child_score_sum = np.array(node.child_score_sum, copy=True)
+    rotated_node.child_policy = np.array(node.child_policy, copy=True)
+    return rotated_node
+
+
+def get_dl_node(board):
+    board_key = board.zobrist_hash()
+    node = dl_data_tree.get(board_key)
+    if node is not None:
+        if not isinstance(node.board, cshogi.Board):
+            node.board = board.copy()
+        return board_key, node
+
+    rotated_board = rotate(board)
+    rotated_key = rotated_board.zobrist_hash()
+    rotated_node = dl_data_tree.get(rotated_key)
+    if rotated_node is None:
+        return board_key, None
+
+    node = build_rotated_dl_node(rotated_node)
+    node.board = board.copy()
+    dl_data_tree[board_key] = node
+    return board_key, node
+
+
 def pick_repetition_detour(path_entries, repeated_key):
     # 指定局面から辿った全経路の候補手から、合法手かつ depth!=9999 の代替手を選ぶ
     # 候補は「最善手との差分が最小」を優先し、同点時はより深い局面を優先する
@@ -97,11 +171,12 @@ def pick_repetition_detour(path_entries, repeated_key):
 
 def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
     root_board = cshogi.Board(sfen=sfen)
-    root_key = root_board.zobrist_hash()
-    current_node = book_tree[root_key]
+    root_key, current_node = get_book_node(root_board)
+    if current_node is None:
+        raise KeyError(f"Root board is not in book tree: {root_board.sfen()}")
     current_node.board = root_board.copy()
     current_key = root_key
-    root_board_val = book_tree[root_key].child_score[0]
+    root_board_val = current_node.child_score[0]
 
     val_sum_threshold = 0.95
     next_board = current_node.board.copy()
@@ -111,7 +186,12 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         path_entries.append({"key": current_key, "node": current_node, "board_snapshot": current_node.board.copy()})
 
         # policyの上位何手でval_sum_thresholdを超えるか確認する
-        child_value_sorted = np.sort(dl_data_tree[current_key].child_policy)[::-1]
+        _, current_dl_node = get_dl_node(current_node.board)
+        if current_dl_node is None or current_dl_node.child_policy is None:
+            print("Current board is not in dl_data_tree. Stop at current board.")
+            break
+
+        child_value_sorted = np.sort(current_dl_node.child_policy)[::-1]
         val_sum_threshold_count = 0
         val_sum = 0.0
         while val_sum < val_sum_threshold and val_sum_threshold_count < len(child_value_sorted):
@@ -154,18 +234,18 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                     )
 
                     next_board = detour_board
-                    next_board_key = next_board.zobrist_hash()
+                    next_board_key, next_node = get_book_node(next_board)
                     current_key = next_board_key
 
-                    if current_key not in book_tree:
+                    if next_node is None:
                         # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
                         next_board.pop()
                         next_board_key = next_board.zobrist_hash()
                         current_key = next_board_key
                         break
 
-                    current_node = book_tree[next_board_key]
-                    current_node.board = next_board  # history保持のためboardごとコピーする
+                    current_node = next_node
+                    current_node.board = next_board.copy()  # history保持のためboardごとコピーする
                     detour_applied = True
                     path_entries = [
                         {"key": detour_key, "node": detour_node, "board_snapshot": detour_node.board.copy()},
@@ -176,16 +256,16 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
             print("Repetition detected but no detour candidate found. Stop at current board.")
             break
 
-        next_board_key = next_board.zobrist_hash()
+        next_board_key, next_node = get_book_node(next_board)
         current_key = next_board_key
-        if current_key not in book_tree:
+        if next_node is None:
             # 探索開始局面が定跡ツリーに登録されていなかったら1手戻した局面を探索開始局面にする
             next_board.pop()
             next_board_key = next_board.zobrist_hash()
             current_key = next_board_key
             break
-        current_node = book_tree[next_board_key]
-        current_node.board = next_board # history保持のためboardごとコピーする
+        current_node = next_node
+        current_node.board = next_board.copy() # history保持のためboardごとコピーする
         root_board_val *= -1
 
     first_board = next_board
@@ -225,20 +305,28 @@ def search(node):
 
     # 次の局面が定跡ツリーに登録されていなければ定跡ツリーに追加する
     if next_board_key not in dl_data_tree:
+        _, current_dl_node = get_dl_node(node.board)
+        if current_dl_node is None:
+            raise KeyError(f"Current board is not in dl_data_tree: {node.board.sfen()}")
+
         dl_data_tree[next_board_key] = Node()
         dl_data_tree[next_board_key].board = next_board.copy()
         dl_data_tree[next_board_key].child_move = None
         # 次の局面については未評価なので1-(現局面の評価値)で仮置きする
-        dl_data_tree[next_board_key].value = 1.0 - dl_data_tree[node.board.zobrist_hash()].value
+        dl_data_tree[next_board_key].value = 1.0 - current_dl_node.value
 
     # 次の局面が末端ノードの場合定跡ツリーに登録されているか確認し、登録されていれば定跡ツリーの値で置き換える
     if not dl_data_tree[next_board_key].child_move:
-        if node.board.zobrist_hash() in book_tree and node.child_move[search_node] in book_tree[node.board.zobrist_hash()].child_move:
-            index = book_tree[node.board.zobrist_hash()].child_move.index(node.child_move[search_node])
-            dl_data_tree[next_board_key].value = 1.0 - score_to_value(book_tree[node.board.zobrist_hash()].child_score[index])
+        _, current_book_node = get_book_node(node.board)
+        if current_book_node is not None and node.child_move[search_node] in current_book_node.child_move:
+            index = current_book_node.child_move.index(node.child_move[search_node])
+            dl_data_tree[next_board_key].value = 1.0 - score_to_value(current_book_node.child_score[index])
         depth0_count += 1
 
-    next_node = dl_data_tree[next_board.zobrist_hash()]
+    _, next_node = get_dl_node(next_board)
+    if next_node is None:
+        raise KeyError(f"Next board is not in dl_data_tree: {next_board.sfen()}")
+
     next_node.board = next_board # history保持のためboardごとコピーする
     value = search(next_node)
     value = 1.0 - value
@@ -310,23 +398,6 @@ if __name__ == "__main__":
     book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
     book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
 
-    # 反転が含まれていなければ追加する
-    book_tree_rotated = dict()
-    for key in book_tree.keys():
-        board = book_tree[key].board
-        rotated_board = rotate(board)
-        rotated_board_key = rotated_board.zobrist_hash()
-        if rotated_board_key not in book_tree:
-            book_tree_rotated[rotated_board_key] = Node()
-            book_tree_rotated[rotated_board_key].board = rotated_board.copy()
-            book_tree_rotated[rotated_board_key].child_move = [cshogi.to_usi(cshogi.move_rotate(board.move_from_usi(move))).decode() for move in book_tree[key].child_move]
-            book_tree_rotated[rotated_board_key].child_move_count = np.zeros(len(book_tree[key].child_move))
-            book_tree_rotated[rotated_board_key].child_score = -book_tree[key].child_score
-            book_tree_rotated[rotated_board_key].child_score_sum = np.zeros(len(book_tree[key].child_move), dtype=np.float32)
-            book_child_depth_tree[rotated_board_key] = list(book_child_depth_tree.get(key, []))
-
-    book_tree.update(book_tree_rotated)
-
     # DLで評価したノードを読み込む
     with open(args.dl_pickle, "rb") as f:
         dl_data_tree = pickle.load(f)
@@ -347,19 +418,28 @@ if __name__ == "__main__":
         print(f"Root sfen: {root_sfen}")
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
-        dl_data_tree[first_board_key].board = first_board.copy()
+        _, first_dl_node = get_dl_node(first_board)
+        if first_dl_node is None:
+            continue
+
+        first_dl_node.board = first_board.copy()
 
         # 探索開始局面における最善手の局面を探索対象局面に含める
         bestmove_board = first_board.copy()
-        bestmove_board.push_usi(book_tree[first_board_key].child_move[0])
-        if bestmove_board.zobrist_hash() not in book_tree:
+        _, first_book_node = get_book_node(first_board)
+        if first_book_node is None:
+            continue
+
+        bestmove_board.push_usi(first_book_node.child_move[0])
+        _, bestmove_book_node = get_book_node(bestmove_board)
+        if bestmove_book_node is None:
             bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
 
         count = 0
         print("Starting search...")
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
-            search(dl_data_tree[first_board_key])
+            search(first_dl_node)
             pbar.update(1)
             count += 1
         pbar.close()
@@ -375,19 +455,28 @@ if __name__ == "__main__":
         first_board_sfen_list.append(f"{first_board.sfen()}\n")
         print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
-        dl_data_tree[first_board_key].board = first_board.copy()
+        _, first_dl_node = get_dl_node(first_board)
+        if first_dl_node is None:
+            continue
+
+        first_dl_node.board = first_board.copy()
 
         # 探索開始局面における最善手の局面を探索対象局面に含める
         bestmove_board = first_board.copy()
-        bestmove_board.push_usi(book_tree[first_board_key].child_move[0])
-        if bestmove_board.zobrist_hash() not in book_tree:
+        _, first_book_node = get_book_node(first_board)
+        if first_book_node is None:
+            continue
+
+        bestmove_board.push_usi(first_book_node.child_move[0])
+        _, bestmove_book_node = get_book_node(bestmove_board)
+        if bestmove_book_node is None:
             bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
 
         count = 0
         print("Starting search...")
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
-            search(dl_data_tree[first_board_key])
+            search(first_dl_node)
             pbar.update(1)
             count += 1
         pbar.close()

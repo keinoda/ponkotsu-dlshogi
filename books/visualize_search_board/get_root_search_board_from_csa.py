@@ -15,6 +15,37 @@ class Node:
 def rotate_board(board):
     return cshogi.Board(cshogi.rotate_sfen(board.sfen()))
 
+
+def build_rotated_node(node):
+    rotated_board = rotate_board(node.board)
+    rotated_node = Node()
+    rotated_node.board = rotated_board.copy()
+    rotated_node.child_move = [
+        cshogi.to_usi(cshogi.move_rotate(node.board.move_from_usi(move))).decode()
+        for move in node.child_move
+    ]
+    rotated_node.child_score = [-score for score in node.child_score]
+    rotated_node.child_depth = node.child_depth.copy()
+    return rotated_node
+
+
+def get_book_node(book_tree, board):
+    board_key = board.zobrist_hash()
+    node = book_tree.get(board_key)
+    if node is not None:
+        return board_key, node
+
+    rotated_board = rotate_board(board)
+    rotated_key = rotated_board.zobrist_hash()
+    rotated_node = book_tree.get(rotated_key)
+    if rotated_node is None:
+        return board_key, None
+
+    node = build_rotated_node(rotated_node)
+    node.board = board.copy()
+    book_tree[board_key] = node
+    return board_key, node
+
 def parse_book(book_path):
     # parse book entry
     with open(book_path, "r") as f:
@@ -42,22 +73,6 @@ def parse_book(book_path):
             book_tree[book_key].child_move.append(move_usi)
             book_tree[book_key].child_score.append(score)
             book_tree[book_key].child_depth.append(depth)
-
-    # 反転が含まれていなければ追加する
-    book_tree_rotated = dict()
-    for key in book_tree.keys():
-        board = book_tree[key].board
-        board_rotated = rotate_board(board).copy()
-        key_rotated = board_rotated.zobrist_hash()
-        if key_rotated not in book_tree:
-            book_tree_rotated[key_rotated] = Node()
-            book_tree_rotated[key_rotated].board = board_rotated
-            book_tree_rotated[key_rotated].child_move = [cshogi.to_usi(cshogi.move_rotate(board.move_from_usi(move))).decode() \
-                                                        for move in book_tree[key].child_move]
-            book_tree_rotated[key_rotated].chils_score = [-score for score in book_tree[key].child_score]
-            book_tree_rotated[key_rotated].child_depth = book_tree[key].child_depth.copy
-
-    book_tree.update(book_tree_rotated)
     return book_tree
 
 if __name__ == "__main__":
@@ -80,19 +95,22 @@ if __name__ == "__main__":
         moves_usi = [cshogi.move_to_usi(move) for move in parser.moves]
 
         board = cshogi.Board(sfen=parser.sfen)
-        board_key = board.zobrist_hash()
-        score_now = book_tree[board_key].child_score[0]
-        depth_now = book_tree[board_key].child_depth[0]
-        move_now = book_tree[board_key].child_move[0]
+        board_key, node = get_book_node(book_tree, board)
+        if node is None:
+            continue
+
+        score_now = node.child_score[0]
+        depth_now = node.child_depth[0]
+        move_now = node.child_move[0]
 
         for move in parser.moves:
             board.push(move)
-            board_key = board.zobrist_hash()
+            board_key, node = get_book_node(book_tree, board)
             score_now *= -1
             depth_now -= 1
-            if board_key in book_tree:
-                score_next = book_tree[board_key].child_score[0]
-                depth_next = book_tree[board_key].child_depth[0]
+            if node is not None:
+                score_next = node.child_score[0]
+                depth_next = node.child_depth[0]
                 if score_now != score_next or (depth_now != depth_next and depth_next != 9999):
                     score_now = score_next
                     depth_now = depth_next
