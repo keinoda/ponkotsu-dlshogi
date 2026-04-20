@@ -68,15 +68,9 @@ fi
 
 # --- Cython ビルド ---
 echo "============================================================"
-echo "Cython ビルド確認"
+echo "Cython ビルド"
 echo "============================================================"
-if ! python -c "import mcts_core" 2>/dev/null; then
-    echo "mcts_core が見つかりません。ビルドします..."
-    python setup_cython.py build_ext --inplace
-    echo "ビルド完了"
-else
-    echo "mcts_core は既にビルド済み"
-fi
+python setup_cython.py build_ext --inplace
 echo ""
 
 # --- Python 版 ---
