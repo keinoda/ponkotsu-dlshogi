@@ -43,6 +43,7 @@ DEBUG_MODE = False
 DEBUG_SKIP_IS_DRAW = False
 DEBUG_TRACE_FILE = None
 USE_CSHOGI_IS_DRAW = False
+ROTATED_DL_SHARE_STATS = False
 
 
 def debug_log(message):
@@ -151,11 +152,17 @@ def build_rotated_dl_node(node):
     base_board = node.board if isinstance(node.board, cshogi.Board) else cshogi.Board(sfen=node.board)
     rotated_node = Node()
     rotated_node.board = rotate(base_board).copy()
-    # 反転局面は別局面として扱うため、探索統計は引き継がない。
-    rotated_node.move_count = 0
+    # 反転局面の探索統計は、比較実験用に切り替え可能にする。
+    if ROTATED_DL_SHARE_STATS:
+        rotated_node.move_count = node.move_count
+    else:
+        rotated_node.move_count = 0
     # 反転局面は評価視点が反転するため、value 系は補数に変換する。
     rotated_node.value = 1.0 - float(node.value)
-    rotated_node.sum_value = 0.0
+    if ROTATED_DL_SHARE_STATS:
+        rotated_node.sum_value = float(node.move_count) - float(node.sum_value)
+    else:
+        rotated_node.sum_value = 0.0
 
     if node.child_move is None:
         rotated_node.child_move = None
@@ -165,8 +172,12 @@ def build_rotated_dl_node(node):
         return rotated_node
 
     rotated_node.child_move = [to_move_int(cshogi.move_rotate(to_move_int(move))) for move in node.child_move]
-    rotated_node.child_move_count = np.zeros(len(rotated_node.child_move), dtype=np.float32)
-    rotated_node.child_score_sum = np.zeros(len(rotated_node.child_move), dtype=np.float32)
+    if ROTATED_DL_SHARE_STATS:
+        rotated_node.child_move_count = np.array(node.child_move_count, copy=True)
+        rotated_node.child_score_sum = rotated_node.child_move_count - np.array(node.child_score_sum, copy=True)
+    else:
+        rotated_node.child_move_count = np.zeros(len(rotated_node.child_move), dtype=np.float32)
+        rotated_node.child_score_sum = np.zeros(len(rotated_node.child_move), dtype=np.float32)
     rotated_node.child_policy = np.array(node.child_policy, copy=True)
     return rotated_node
 
@@ -448,8 +459,10 @@ if __name__ == "__main__":
     args.add_argument('--debug-skip-is-draw', action='store_true')
     args.add_argument('--debug-trace-file', type=str, default='mcts_debug_trace.log')
     args.add_argument('--use-cshogi-is-draw', action='store_true')
+    args.add_argument('--rotated-dl-share-stats', action='store_true')
     args = args.parse_args()
 
+    ROTATED_DL_SHARE_STATS = args.rotated_dl_share_stats
     USE_CSHOGI_IS_DRAW = args.use_cshogi_is_draw
     DEBUG_SKIP_IS_DRAW = args.debug_skip_is_draw
     DEBUG_MODE = args.debug
@@ -465,6 +478,8 @@ if __name__ == "__main__":
             debug_log("is_draw checks are skipped (--debug-skip-is-draw)")
         if USE_CSHOGI_IS_DRAW:
             debug_log("cshogi is_draw is enabled (--use-cshogi-is-draw)")
+        if ROTATED_DL_SHARE_STATS:
+            debug_log("rotated dl node shares search stats (--rotated-dl-share-stats)")
         if DEBUG_TRACE_FILE is not None:
             with open(DEBUG_TRACE_FILE, "w") as f:
                 f.write("start_debug_trace\n")
