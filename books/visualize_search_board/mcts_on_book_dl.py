@@ -44,7 +44,6 @@ DEBUG_SKIP_IS_DRAW = False
 DEBUG_TRACE_FILE = None
 USE_CSHOGI_IS_DRAW = False
 ROTATED_DL_SHARE_STATS = False
-REPETITION_DRAW_COUNT = 4
 
 
 def debug_log(message):
@@ -259,7 +258,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
     val_sum_threshold = 0.95
     next_board = current_node.board.copy()
     path_entries = []
-    seen_path_counts = {current_key: 1}
+    seen_path_keys = {current_key}
     detour_applied = False
     while True:
         path_entries.append({"key": current_key, "node": current_node, "board_snapshot": current_node.board.copy()})
@@ -298,10 +297,9 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         validate_move_usi(next_board, best_move, "select_root_board.best_move")
         next_board.push_usi(best_move)
         next_board_key_in_path = next_board.zobrist_hash()
-        next_count = seen_path_counts.get(next_board_key_in_path, 0) + 1
 
-        # 同一局面が4回目に到達する再訪を千日手として扱い、代替手へ迂回する
-        if eval_diff == 0 and next_count >= REPETITION_DRAW_COUNT:
+        # 同一局面の再訪を千日手として扱い、最善手に近い代替手へ迂回する
+        if eval_diff == 0 and next_board_key_in_path in seen_path_keys:
             if not detour_applied:
                 detour = pick_repetition_detour(path_entries, next_board_key_in_path)
                 if detour is not None:
@@ -333,7 +331,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                         {"key": detour_key, "node": detour_node, "board_snapshot": detour_node.board.copy()},
                         {"key": current_key, "node": current_node, "board_snapshot": current_node.board.copy()},
                     ]
-                    seen_path_counts = {detour_key: 1, current_key: 1}
+                    seen_path_keys = {detour_key, current_key}
                     continue
 
             print("Repetition detected but no detour candidate found. Stop at current board.")
@@ -349,7 +347,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
             break
         current_node = next_node
         current_node.board = next_board.copy() # history保持のためboardごとコピーする
-        seen_path_counts[current_key] = next_count
+        seen_path_keys.add(current_key)
         root_board_val *= -1
 
     first_board = next_board
@@ -359,18 +357,17 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
 # DLで推論したツリー上でPV-MCTSを行う
 # valueについては定跡ツリーに登録されていれば定跡ツリー上の値を優先する
 visited_nodes = set()
-def search(node, path_key_counts=None):
+def search(node, path_keys=None):
     global depth0_count
-    if path_key_counts is None:
-        path_key_counts = {}
+    if path_keys is None:
+        path_keys = set()
 
     node_key = node.board.zobrist_hash()
-    node_count = path_key_counts.get(node_key, 0) + 1
-    if node_count >= REPETITION_DRAW_COUNT:
+    if node_key in path_keys:
         # 同一探索経路で局面を再訪したら千日手として扱う
         return 0.5
 
-    path_key_counts[node_key] = node_count
+    path_keys.add(node_key)
 
     node.move_count += 1
 
@@ -386,9 +383,8 @@ def search(node, path_key_counts=None):
         safe_push(next_board, node.child_move[search_node], "search.next_board")
         next_board_key = next_board.zobrist_hash()
 
-        # 同一探索経路で4回目の出現なら千日手
-        next_count = path_key_counts.get(next_board_key, 0) + 1
-        if next_count >= REPETITION_DRAW_COUNT:
+        # 同一探索経路で再訪したら千日手
+        if next_board_key in path_keys:
             # 千日手
             return 0.5
 
@@ -428,17 +424,14 @@ def search(node, path_key_counts=None):
             raise KeyError(f"Next board is not in dl_data_tree: {next_board.sfen()}")
 
         next_node.board = next_board # history保持のためboardごとコピーする
-        value = search(next_node, path_key_counts)
+        value = search(next_node, path_keys)
         value = 1.0 - value
 
         node.sum_value += value
         node.child_score_sum[search_node] += value
         return value
     finally:
-        if node_count <= 1:
-            path_key_counts.pop(node_key, None)
-        else:
-            path_key_counts[node_key] = node_count - 1
+        path_keys.remove(node_key)
 
 def get_history(node, history=None):
     if history is None:
