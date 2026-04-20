@@ -79,23 +79,17 @@ else
 fi
 echo ""
 
-# --- 共通引数 ---
-COMMON_ARGS=(
-    "$BOOK" "$DL_PICKLE"
-    --visited-nodes-limit 0
-    "${ROOT_SFENS_CMD[@]}"
-    "${EXTRA_ARGS[@]}"
-)
-
 # --- Python 版 ---
 echo "============================================================"
 echo "[1/2] Pure Python で実行"
 echo "============================================================"
 START_PY=$(python -c "import time; print(time.time())")
 python mcts_on_book_dl.py \
-    "${COMMON_ARGS[@]}" \
-    "$SFENS_PY" \
+    "$BOOK" "$DL_PICKLE" "$SFENS_PY" \
+    --visited-nodes-limit 0 \
     --first_board_sfen_output "$FIRST_PY" \
+    "${ROOT_SFENS_CMD[@]}" \
+    "${EXTRA_ARGS[@]}" \
     2>&1 | tee "$LOG_PY"
 END_PY=$(python -c "import time; print(time.time())")
 TIME_PY=$(python -c "print(f'{$END_PY - $START_PY:.2f}')")
@@ -107,10 +101,12 @@ echo "[2/2] Cython で実行"
 echo "============================================================"
 START_CY=$(python -c "import time; print(time.time())")
 python mcts_on_book_dl.py \
+    "$BOOK" "$DL_PICKLE" "$SFENS_CY" \
     --use-cython \
-    "${COMMON_ARGS[@]}" \
-    "$SFENS_CY" \
+    --visited-nodes-limit 0 \
     --first_board_sfen_output "$FIRST_CY" \
+    "${ROOT_SFENS_CMD[@]}" \
+    "${EXTRA_ARGS[@]}" \
     2>&1 | tee "$LOG_CY"
 END_CY=$(python -c "import time; print(time.time())")
 TIME_CY=$(python -c "print(f'{$END_CY - $START_CY:.2f}')")
