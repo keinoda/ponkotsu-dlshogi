@@ -90,9 +90,11 @@ def build_rotated_dl_node(node):
     base_board = node.board if isinstance(node.board, cshogi.Board) else cshogi.Board(sfen=node.board)
     rotated_node = Node()
     rotated_node.board = rotate(base_board).copy()
-    rotated_node.move_count = node.move_count
-    rotated_node.value = node.value
-    rotated_node.sum_value = node.sum_value
+    # 反転局面は別局面として扱うため、探索統計は引き継がない。
+    rotated_node.move_count = 0
+    # 反転局面は評価視点が反転するため、value 系は補数に変換する。
+    rotated_node.value = 1.0 - float(node.value)
+    rotated_node.sum_value = 0.0
 
     if node.child_move is None:
         rotated_node.child_move = None
@@ -102,8 +104,8 @@ def build_rotated_dl_node(node):
         return rotated_node
 
     rotated_node.child_move = [cshogi.move_rotate(move) for move in node.child_move]
-    rotated_node.child_move_count = np.array(node.child_move_count, copy=True)
-    rotated_node.child_score_sum = np.array(node.child_score_sum, copy=True)
+    rotated_node.child_move_count = np.zeros(len(rotated_node.child_move), dtype=np.float32)
+    rotated_node.child_score_sum = np.zeros(len(rotated_node.child_move), dtype=np.float32)
     rotated_node.child_policy = np.array(node.child_policy, copy=True)
     return rotated_node
 
