@@ -117,6 +117,11 @@ def safe_is_draw(board, context):
 
 
 class Node:
+    __slots__ = ('board', 'move_count', 'value', 'sum_value',
+                 'child_move', 'child_move_count', 'child_score',
+                 'child_score_sum', 'child_policy', 'child_q',
+                 'parent_move', 'parent_move_count', 'parent_key')
+
     def __init__(self):
         self.board = None
         self.move_count = 0
@@ -127,9 +132,17 @@ class Node:
         self.child_score = []
         self.child_score_sum = []
         self.child_policy = None
+        self.child_q = None
         self.parent_move = None
         self.parent_move_count = 0
         self.parent_key = None
+
+    def __getstate__(self):
+        return {s: getattr(self, s) for s in self.__slots__}
+
+    def __setstate__(self, state):
+        for s in self.__slots__:
+            setattr(self, s, state.get(s))
 
 
 def build_rotated_book_node(node):
@@ -149,6 +162,8 @@ def get_book_node(board):
     board_key = board.zobrist_hash()
     node = book_tree.get(board_key)
     if node is not None:
+        if isinstance(node.board, str):
+            node.board = cshogi.Board(sfen=node.board)
         return board_key, node
 
     rotated_board = rotate(board)
@@ -157,6 +172,8 @@ def get_book_node(board):
     if rotated_node is None:
         return board_key, None
 
+    if isinstance(rotated_node.board, str):
+        rotated_node.board = cshogi.Board(sfen=rotated_node.board)
     node = build_rotated_book_node(rotated_node)
     node.board = board.copy()
     book_tree[board_key] = node
@@ -461,6 +478,41 @@ def get_history(node, history=None):
 def rotate(board):
     return cshogi.Board(cshogi.rotate_sfen(board.sfen()))
 
+
+def load_dl_data_tree_npz(path):
+    """Load dl_data_tree from npz format (columnar arrays)."""
+    npz = np.load(path, allow_pickle=True)
+    keys = npz['keys']
+    sfen_bytes = npz['sfen_bytes']
+    values = npz['values']
+    has_children = npz['has_children']
+    child_offsets = npz['child_offsets']
+    child_move_flat = npz['child_move_flat']
+    child_policy_flat = npz['child_policy_flat']
+
+    n = len(keys)
+    tree = {}
+    for i in range(n):
+        node = Node()
+        sb = sfen_bytes[i]
+        node.board = sb.decode('ascii') if isinstance(sb, bytes) else str(sb)
+        node.value = float(values[i])
+
+        if has_children[i]:
+            start = child_offsets[i]
+            end = child_offsets[i + 1]
+            node.child_move = child_move_flat[start:end].tolist()
+            node.child_move_count = np.zeros(end - start, dtype=np.float32)
+            node.child_score_sum = np.zeros(end - start, dtype=np.float32)
+            node.child_policy = child_policy_flat[start:end].copy()
+        else:
+            node.child_move = None
+
+        tree[int(keys[i])] = node
+
+    return tree
+
+
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument('book')
@@ -534,7 +586,7 @@ if __name__ == "__main__":
             board.set_sfen(" ".join(book.split(" ")[1:]))
             board_key = board.zobrist_hash()
             book_tree[board_key] = Node()
-            book_tree[board_key].board = board.copy()
+            book_tree[board_key].board = board.sfen()
             book_child_depth_tree[board_key] = []
         else:
             next_move_info = book.strip().split(" ")
@@ -559,8 +611,11 @@ if __name__ == "__main__":
 
     # DLで評価したノードを読み込む
     pickle_load_start = time.time()
-    with open(args.dl_pickle, "rb") as f:
-        dl_data_tree = pickle.load(f)
+    if args.dl_pickle.endswith('.npz'):
+        dl_data_tree = load_dl_data_tree_npz(args.dl_pickle)
+    else:
+        with open(args.dl_pickle, "rb") as f:
+            dl_data_tree = pickle.load(f)
     pickle_load_elapsed = time.time() - pickle_load_start
     print(f"Pickle load: {pickle_load_elapsed:.2f}s ({len(dl_data_tree)} nodes)")
 
