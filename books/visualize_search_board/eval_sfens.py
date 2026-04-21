@@ -11,7 +11,11 @@ def load_out_data(path):
         return None
 
     if path.endswith('.npz'):
-        npz = np.load(path, allow_pickle=False)
+        try:
+            npz = np.load(path, allow_pickle=False)
+        except ValueError:
+            # Backward compatibility for old files that stored object arrays.
+            npz = np.load(path, allow_pickle=True)
         keys = npz['keys']
         sfen_bytes = npz['sfen_bytes']
         values = npz['values']
@@ -50,7 +54,7 @@ def save_out_data(path, out):
     if path.endswith('.npz'):
         n = len(out)
         keys = np.empty(n, dtype=np.uint64)
-        sfen_bytes = np.empty(n, dtype=object)
+        sfen_list = []
         values = np.empty(n, dtype=np.float32)
         has_children = np.empty(n, dtype=np.bool_)
 
@@ -74,7 +78,7 @@ def save_out_data(path, out):
                 board_sfen = node.board.sfen()
             else:
                 board_sfen = ''
-            sfen_bytes[i] = board_sfen.encode('ascii') if board_sfen else b''
+            sfen_list.append(board_sfen.encode('ascii') if board_sfen else b'')
 
             child_offsets[i] = offset
             if node.child_move is not None and len(node.child_move) > 0:
@@ -90,6 +94,7 @@ def save_out_data(path, out):
                 has_children[i] = False
 
         child_offsets[n] = offset
+        sfen_bytes = np.asarray(sfen_list)
         np.savez(
             path,
             keys=keys,
