@@ -568,46 +568,50 @@ if __name__ == "__main__":
                 f.write("start_debug_trace\n")
 
     book_parse_start = time.time()
-    with open(args.book, "r") as f:
-        books = f.readlines()
-        books = [s.replace("\n", "") for s in books[1:]]
+    if USE_CPP and hasattr(mcts_cpp, 'parse_book_cpp'):
+        book_tree, book_child_depth_tree = mcts_cpp.parse_book_cpp(args.book, Node)
+        print(f"Book parse (C++): {time.time() - book_parse_start:.2f}s ({len(book_tree)} positions)")
+    else:
+        with open(args.book, "r") as f:
+            books = f.readlines()
+            books = [s.replace("\n", "") for s in books[1:]]
 
-    # 定跡をパースする
-    board = cshogi.Board()
-    board_key = None
-    for book in books:
-        if book.startswith("sfen"):
-            # 直前までのbook_tree[board_key]のchile_move_count, child_score, child_score_sumをnumpy配列に変換する
-            if board_key is not None:
-                book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
-                book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
-                book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
+        # 定跡をパースする
+        board = cshogi.Board()
+        board_key = None
+        for book in books:
+            if book.startswith("sfen"):
+                # 直前までのbook_tree[board_key]のchile_move_count, child_score, child_score_sumをnumpy配列に変換する
+                if board_key is not None:
+                    book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
+                    book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
+                    book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
 
-            board.set_sfen(" ".join(book.split(" ")[1:]))
-            board_key = board.zobrist_hash()
-            book_tree[board_key] = Node()
-            book_tree[board_key].board = board.sfen()
-            book_child_depth_tree[board_key] = []
-        else:
-            next_move_info = book.strip().split(" ")
-            move_usi = next_move_info[0]
-            book_tree[board_key].child_move.append(move_usi)
-            book_tree[board_key].child_score.append(int(next_move_info[2]))
+                board.set_sfen(" ".join(book.split(" ")[1:]))
+                board_key = board.zobrist_hash()
+                book_tree[board_key] = Node()
+                book_tree[board_key].board = board.sfen()
+                book_child_depth_tree[board_key] = []
+            else:
+                next_move_info = book.strip().split(" ")
+                move_usi = next_move_info[0]
+                book_tree[board_key].child_move.append(move_usi)
+                book_tree[board_key].child_score.append(int(next_move_info[2]))
 
-            move_depth = None
-            for token in next_move_info[3:]:
-                try:
-                    move_depth = int(token)
-                    break
-                except ValueError:
-                    continue
-            book_child_depth_tree[board_key].append(move_depth)
+                move_depth = None
+                for token in next_move_info[3:]:
+                    try:
+                        move_depth = int(token)
+                        break
+                    except ValueError:
+                        continue
+                book_child_depth_tree[board_key].append(move_depth)
 
-    book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
-    book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
-    book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
-    book_parse_elapsed = time.time() - book_parse_start
-    print(f"Book parse: {book_parse_elapsed:.2f}s ({len(book_tree)} positions)")
+        book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
+        book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
+        book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
+        book_parse_elapsed = time.time() - book_parse_start
+        print(f"Book parse: {book_parse_elapsed:.2f}s ({len(book_tree)} positions)")
 
     # DLで評価したノードを読み込む
     pickle_load_start = time.time()

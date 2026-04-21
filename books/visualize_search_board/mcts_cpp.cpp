@@ -3,12 +3,19 @@
 
 #include <cmath>
 #include <cstdint>
+#include <fstream>
 #include <limits>
+#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#ifdef USE_CSHOGI_NATIVE
+#include "init.hpp"
+#include "position.hpp"
+#endif
 
 namespace py = pybind11;
 
@@ -473,6 +480,149 @@ long long get_depth0_count() {
 }
 
 
+#ifdef USE_CSHOGI_NATIVE
+namespace {
+    bool s_native_initialized = false;
+    void ensure_native_init() {
+        if (!s_native_initialized) {
+            Position::initZobrist();
+            s_native_initialized = true;
+        }
+    }
+
+    static inline void rtrim(std::string &s) {
+        while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) {
+            s.pop_back();
+        }
+    }
+}
+
+
+py::tuple parse_book_cpp(const std::string &filepath, py::object node_class) {
+    ensure_native_init();
+
+    std::ifstream ifs(filepath);
+    if (!ifs.is_open()) {
+        throw std::runtime_error("Cannot open book file: " + filepath);
+    }
+
+    struct ChildEntry {
+        std::string move_usi;
+        int score;
+        int depth;  // -1 means None
+    };
+
+    struct BookEntry {
+        std::uint64_t key;
+        std::string sfen;
+        std::vector<ChildEntry> children;
+    };
+
+    std::vector<BookEntry> entries;
+    entries.reserve(2500000);
+
+    Position pos;
+    std::string line;
+
+    // Skip first line (header)
+    std::getline(ifs, line);
+
+    while (std::getline(ifs, line)) {
+        rtrim(line);
+        if (line.empty()) continue;
+
+        if (line.compare(0, 4, "sfen") == 0) {
+            entries.emplace_back();
+            BookEntry &entry = entries.back();
+
+            std::string sfen = line.substr(5);
+            pos.set(sfen);
+            entry.key = pos.getKey();
+            entry.sfen = pos.toSFEN();
+        } else if (!entries.empty()) {
+            BookEntry &entry = entries.back();
+
+            std::istringstream iss(line);
+            ChildEntry child;
+            std::string dummy;
+            iss >> child.move_usi >> dummy >> child.score;
+
+            child.depth = -1;
+            std::string token;
+            while (iss >> token) {
+                try {
+                    size_t pos_end = 0;
+                    int val = std::stoi(token, &pos_end);
+                    if (pos_end == token.size()) {
+                        child.depth = val;
+                        break;
+                    }
+                } catch (...) {
+                    continue;
+                }
+            }
+
+            entry.children.push_back(std::move(child));
+        }
+    }
+
+    // Build Python dicts
+    py::dict book_tree_out;
+    py::dict book_child_depth_tree_out;
+
+    for (auto &entry : entries) {
+        py::int_ key_obj(entry.key);
+
+        py::object node = node_class();
+        node.attr("board") = py::cast(entry.sfen);
+
+        const size_t n = entry.children.size();
+
+        py::list child_move_list;
+        for (auto &child : entry.children) {
+            child_move_list.append(py::cast(child.move_usi));
+        }
+        node.attr("child_move") = child_move_list;
+
+        // child_move_count: np.zeros(n)
+        auto child_move_count = py::array_t<double>(static_cast<py::ssize_t>(n));
+        std::memset(child_move_count.mutable_data(), 0, n * sizeof(double));
+        node.attr("child_move_count") = child_move_count;
+
+        // child_score: np.array(scores, dtype=float32)
+        auto child_score = py::array_t<float>(static_cast<py::ssize_t>(n));
+        {
+            float *ptr = child_score.mutable_data();
+            for (size_t i = 0; i < n; ++i) {
+                ptr[i] = static_cast<float>(entry.children[i].score);
+            }
+        }
+        node.attr("child_score") = child_score;
+
+        // child_score_sum: np.zeros(n, dtype=float32)
+        auto child_score_sum = py::array_t<float>(static_cast<py::ssize_t>(n));
+        std::memset(child_score_sum.mutable_data(), 0, n * sizeof(float));
+        node.attr("child_score_sum") = child_score_sum;
+
+        book_tree_out[key_obj] = node;
+
+        // book_child_depth_tree
+        py::list depth_list;
+        for (auto &child : entry.children) {
+            if (child.depth == -1) {
+                depth_list.append(py::none());
+            } else {
+                depth_list.append(py::cast(child.depth));
+            }
+        }
+        book_child_depth_tree_out[key_obj] = depth_list;
+    }
+
+    return py::make_tuple(book_tree_out, book_child_depth_tree_out);
+}
+#endif
+
+
 PYBIND11_MODULE(mcts_cpp, m) {
     m.doc() = "C++ MCTS core (B1 full-search path)";
     m.def("init", &init, "Initialize module globals");
@@ -480,4 +630,8 @@ PYBIND11_MODULE(mcts_cpp, m) {
     m.def("select_max_ucb_child_cpp", &select_max_ucb_child_cpp, "Select child with max UCB");
     m.def("sync_cpp_to_python", &sync_cpp_to_python, "Sync C++ node stats to Python nodes");
     m.def("get_depth0_count", &get_depth0_count, "Get depth0 count");
+#ifdef USE_CSHOGI_NATIVE
+    m.def("parse_book_cpp", &parse_book_cpp, py::arg("filepath"), py::arg("node_class"),
+          "Parse book file using native C++ Position");
+#endif
 }
