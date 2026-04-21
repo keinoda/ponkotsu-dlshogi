@@ -19,4 +19,4 @@ if __name__ == "__main__":
         del data[key]
 
     with open(args.output, 'wb') as f:
-        pickle.dump(data, f)
+        pickle.dump(data, f, protocol=5)

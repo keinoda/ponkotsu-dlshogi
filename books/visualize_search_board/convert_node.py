@@ -27,4 +27,4 @@ for key, value in tqdm.tqdm(data.items()):
 
 print("Converting {} nodes".format(len(out)))
 with open(args.output, 'wb') as f:
-    pickle.dump(out, f)
+    pickle.dump(out, f, protocol=5)

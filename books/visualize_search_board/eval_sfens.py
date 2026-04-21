@@ -74,4 +74,4 @@ if __name__ == "__main__":
     out = eval_sfens(session, eval_sfen_list, batch_size, out)
 
     with open(args.pickle, "wb") as f:
-        pickle.dump(out, f)
+        pickle.dump(out, f, protocol=5)

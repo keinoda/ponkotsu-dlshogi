@@ -187,4 +187,4 @@ if __name__ == "__main__":
         f.writelines(sfens_list)
 
     with open(args.boards, "wb") as f:
-        pickle.dump(moves_list, f)
+        pickle.dump(moves_list, f, protocol=5)

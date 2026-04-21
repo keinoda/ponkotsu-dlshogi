@@ -76,7 +76,7 @@ if __name__ == "__main__":
     out[board.zobrist_hash()] = node
 
     with open(args.pickle, "wb") as f:
-        pickle.dump(out, f)
+        pickle.dump(out, f, protocol=5)
 
     with open(args.pickle, "rb") as f:
         data = pickle.load(f)

@@ -61,7 +61,7 @@ def main():
     filtered, removed, skipped = filter_rotated_entries(data)
 
     with open(args.output_pickle, "wb") as f:
-        pickle.dump(filtered, f)
+        pickle.dump(filtered, f, protocol=5)
 
     print(f"input_entries={len(data)}")
     print(f"output_entries={len(filtered)}")
