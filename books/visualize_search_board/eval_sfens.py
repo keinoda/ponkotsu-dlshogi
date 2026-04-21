@@ -12,17 +12,24 @@ def load_out_data(path):
 
     if path.endswith('.npz'):
         try:
-            npz = np.load(path, allow_pickle=False)
+            with np.load(path, allow_pickle=False) as npz:
+                keys = npz['keys']
+                sfen_bytes = npz['sfen_bytes']
+                values = npz['values']
+                has_children = npz['has_children']
+                child_offsets = npz['child_offsets']
+                child_move_flat = npz['child_move_flat']
+                child_policy_flat = npz['child_policy_flat']
         except ValueError:
             # Backward compatibility for old files that stored object arrays.
-            npz = np.load(path, allow_pickle=True)
-        keys = npz['keys']
-        sfen_bytes = npz['sfen_bytes']
-        values = npz['values']
-        has_children = npz['has_children']
-        child_offsets = npz['child_offsets']
-        child_move_flat = npz['child_move_flat']
-        child_policy_flat = npz['child_policy_flat']
+            with np.load(path, allow_pickle=True) as npz:
+                keys = npz['keys']
+                sfen_bytes = npz['sfen_bytes']
+                values = npz['values']
+                has_children = npz['has_children']
+                child_offsets = npz['child_offsets']
+                child_move_flat = npz['child_move_flat']
+                child_policy_flat = npz['child_policy_flat']
 
         out = {}
         for i in range(len(keys)):
