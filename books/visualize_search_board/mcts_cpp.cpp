@@ -4,12 +4,28 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <unordered_map>
+#include <unordered_set>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace py = pybind11;
 
 namespace {
+
+struct CppNode {
+    std::uint64_t key = 0;
+    py::object py_node = py::none();
+    long long move_count = 0;
+    double value = 0.0;
+    double sum_value = 0.0;
+    std::vector<int> child_move;
+    std::vector<double> child_move_count;
+    std::vector<double> child_score_sum;
+    std::vector<double> child_policy;
+    bool dirty = false;
+};
 
 double &c_puct() {
     static double value = 0.1;
@@ -76,9 +92,9 @@ long long &depth0_count() {
     return value;
 }
 
-
-double score_to_value_cpp(double score, double a = 756.0864962951762) {
-    return 1.0 / (1.0 + std::exp(-score / a));
+std::unordered_map<std::uint64_t, CppNode> &dl_cpp_tree() {
+    static auto *obj = new std::unordered_map<std::uint64_t, CppNode>();
+    return *obj;
 }
 
 
@@ -116,34 +132,149 @@ double read_numeric_1d(const py::array &arr, const py::buffer_info &info, ssize_
 }
 
 
-int select_max_ucb_child_cpp(py::object node) {
-    const py::object child_move_obj = node.attr("child_move");
-    const ssize_t n = py::len(child_move_obj);
+std::vector<double> vector_from_numeric_obj(const py::object &obj) {
+    std::vector<double> out;
+    if (obj.is_none()) {
+        return out;
+    }
+
+    if (py::isinstance<py::array>(obj)) {
+        const py::array arr = py::cast<py::array>(obj);
+        const py::buffer_info info = arr.request();
+        if (info.ndim != 1) {
+            throw std::runtime_error("expected 1D numeric array");
+        }
+        out.resize(static_cast<size_t>(info.shape[0]));
+        for (ssize_t i = 0; i < info.shape[0]; ++i) {
+            out[static_cast<size_t>(i)] = read_numeric_1d(arr, info, i);
+        }
+        return out;
+    }
+
+    const py::sequence seq = obj.cast<py::sequence>();
+    const ssize_t n = py::len(seq);
+    out.reserve(static_cast<size_t>(n));
+    for (ssize_t i = 0; i < n; ++i) {
+        out.push_back(py::cast<double>(seq[i]));
+    }
+    return out;
+}
+
+
+std::vector<int> vector_from_int_obj(const py::object &obj) {
+    std::vector<int> out;
+    if (obj.is_none()) {
+        return out;
+    }
+
+    const py::sequence seq = obj.cast<py::sequence>();
+    const ssize_t n = py::len(seq);
+    out.reserve(static_cast<size_t>(n));
+    for (ssize_t i = 0; i < n; ++i) {
+        out.push_back(py::cast<int>(seq[i]));
+    }
+    return out;
+}
+
+
+CppNode build_cpp_node(std::uint64_t key, py::object py_node) {
+    CppNode node;
+    node.key = key;
+    node.py_node = std::move(py_node);
+    node.move_count = py::cast<long long>(node.py_node.attr("move_count"));
+    node.value = py::cast<double>(node.py_node.attr("value"));
+    node.sum_value = py::cast<double>(node.py_node.attr("sum_value"));
+
+    const py::object child_move_obj = node.py_node.attr("child_move");
+    if (is_none_or_empty(child_move_obj)) {
+        return node;
+    }
+
+    node.child_move = vector_from_int_obj(child_move_obj);
+    node.child_move_count = vector_from_numeric_obj(node.py_node.attr("child_move_count"));
+    node.child_score_sum = vector_from_numeric_obj(node.py_node.attr("child_score_sum"));
+    node.child_policy = vector_from_numeric_obj(node.py_node.attr("child_policy"));
+
+    const size_t n = node.child_move.size();
+    if (node.child_move_count.size() != n) {
+        node.child_move_count.resize(n, 0.0);
+    }
+    if (node.child_score_sum.size() != n) {
+        node.child_score_sum.resize(n, 0.0);
+    }
+    if (node.child_policy.size() != n) {
+        node.child_policy.resize(n, 0.0);
+    }
+    return node;
+}
+
+
+CppNode &ensure_cpp_node(std::uint64_t key, const py::object &board) {
+    auto it = dl_cpp_tree().find(key);
+    if (it != dl_cpp_tree().end()) {
+        return it->second;
+    }
+
+    const py::int_ key_obj(key);
+    py::object py_node = py::none();
+    if (dl_data_tree().contains(key_obj)) {
+        py_node = dl_data_tree()[key_obj];
+    } else {
+        const py::tuple next_dl = get_dl_node_func()(board).cast<py::tuple>();
+        py_node = next_dl[1];
+        if (py_node.is_none()) {
+            const std::string sfen = py::cast<std::string>(board.attr("sfen")());
+            throw py::key_error("Board is not in dl_data_tree: " + sfen);
+        }
+        dl_data_tree()[key_obj] = py_node;
+    }
+
+    auto inserted = dl_cpp_tree().emplace(key, build_cpp_node(key, py_node));
+    return inserted.first->second;
+}
+
+
+void sync_cpp_to_python() {
+    for (auto &entry : dl_cpp_tree()) {
+        CppNode &node = entry.second;
+        if (!node.dirty) {
+            continue;
+        }
+
+        node.py_node.attr("move_count") = py::int_(node.move_count);
+        node.py_node.attr("sum_value") = py::float_(node.sum_value);
+
+        if (!node.child_move.empty()) {
+            py::object child_move_count_obj = node.py_node.attr("child_move_count");
+            py::object child_score_sum_obj = node.py_node.attr("child_score_sum");
+            for (size_t i = 0; i < node.child_move.size(); ++i) {
+                const py::int_ idx(static_cast<py::ssize_t>(i));
+                child_move_count_obj[idx] = py::float_(node.child_move_count[i]);
+                child_score_sum_obj[idx] = py::float_(node.child_score_sum[i]);
+            }
+        }
+
+        node.dirty = false;
+    }
+}
+
+
+int select_max_ucb_child_cpp_node(const CppNode &node) {
+    const ssize_t n = static_cast<ssize_t>(node.child_move.size());
     if (n <= 0) {
         return 0;
     }
 
-    const py::array cmc_arr = py::cast<py::array>(node.attr("child_move_count"));
-    const py::array css_arr = py::cast<py::array>(node.attr("child_score_sum"));
-    const py::array cp_arr = py::cast<py::array>(node.attr("child_policy"));
-
-    const py::buffer_info cmc_info = cmc_arr.request();
-    const py::buffer_info css_info = css_arr.request();
-    const py::buffer_info cp_info = cp_arr.request();
-
-    if (cmc_info.ndim != 1 || css_info.ndim != 1 || cp_info.ndim != 1) {
-        throw std::runtime_error("child arrays must be 1D");
-    }
-
-    const double mc = py::cast<double>(node.attr("move_count"));
+    const double mc = static_cast<double>(node.move_count);
 
     int best_idx = 0;
     double best_ucb = -std::numeric_limits<double>::infinity();
 
     for (ssize_t i = 0; i < n; ++i) {
-        const double cmc = read_numeric_1d(cmc_arr, cmc_info, i);
-        const double css = read_numeric_1d(css_arr, css_info, i);
-        const double cp = read_numeric_1d(cp_arr, cp_info, i);
+        const size_t idx = static_cast<size_t>(i);
+        const double cmc = node.child_move_count[idx];
+        const double css = node.child_score_sum[idx];
+        const double cp = node.child_policy[idx];
 
         const double q = (cmc != 0.0) ? (css / cmc) : 0.0;
         const double u = (mc == 0.0) ? 1.0 : std::sqrt(mc / (1.0 + cmc));
@@ -159,59 +290,95 @@ int select_max_ucb_child_cpp(py::object node) {
 }
 
 
+int select_max_ucb_child_cpp(py::object node) {
+    const py::object child_move_obj = node.attr("child_move");
+    const ssize_t n = py::len(child_move_obj);
+    if (n <= 0) {
+        return 0;
+    }
+
+    CppNode temp = build_cpp_node(0, std::move(node));
+    return select_max_ucb_child_cpp_node(temp);
+}
+
+
 class PathKeyGuard {
 public:
-    PathKeyGuard(py::set &path_keys, py::object key) : path_keys_(path_keys), key_(std::move(key)) {
-        path_keys_.add(key_);
+    PathKeyGuard(std::unordered_set<std::uint64_t> &path_keys, std::uint64_t key) : path_keys_(path_keys), key_(key) {
+        path_keys_.insert(key_);
     }
 
     ~PathKeyGuard() {
+        path_keys_.erase(key_);
+    }
+
+private:
+    std::unordered_set<std::uint64_t> &path_keys_;
+    std::uint64_t key_;
+};
+
+
+class MoveGuard {
+public:
+    explicit MoveGuard(py::object board) : board_(std::move(board)), active_(true) {}
+
+    ~MoveGuard() {
+        if (!active_) {
+            return;
+        }
         try {
-            path_keys_.attr("discard")(key_);
+            board_.attr("pop")();
         } catch (...) {
             // Suppress all exceptions in destructor.
         }
     }
 
+    void release() {
+        active_ = false;
+    }
+
 private:
-    py::set &path_keys_;
-    py::object key_;
+    py::object board_;
+    bool active_;
 };
 
 
-double search_impl(py::object node, py::set &path_keys) {
-    const py::object node_key = node.attr("board").attr("zobrist_hash")();
-    if (path_keys.contains(node_key)) {
+double search_impl(py::object board, std::uint64_t node_key, std::unordered_set<std::uint64_t> &path_keys) {
+    if (path_keys.find(node_key) != path_keys.end()) {
         return 0.5;
     }
 
+    CppNode &node = ensure_cpp_node(node_key, board);
     PathKeyGuard guard(path_keys, node_key);
 
-    node.attr("move_count") = py::int_(py::cast<long long>(node.attr("move_count")) + 1);
+    node.move_count += 1;
+    node.dirty = true;
 
-    const py::object child_move_obj = node.attr("child_move");
-    if (is_none_or_empty(child_move_obj)) {
-        visited_nodes().attr("add")(node_key);
-        return py::cast<double>(node.attr("value"));
+    if (node.child_move.empty()) {
+        const py::int_ key_obj(node_key);
+        if (!visited_nodes().contains(key_obj)) {
+            node.py_node.attr("board") = board.attr("copy")();
+            visited_nodes().add(key_obj);
+        }
+        return node.value;
     }
 
-    const int search_node = select_max_ucb_child_cpp(node);
-    const py::int_ search_idx(search_node);
+    const int search_node = select_max_ucb_child_cpp_node(node);
+    const size_t search_idx = static_cast<size_t>(search_node);
+    node.child_move_count[search_idx] += 1.0;
+    node.dirty = true;
 
-    py::object child_move_count_obj = node.attr("child_move_count");
-    child_move_count_obj[search_idx] = py::float_(py::cast<double>(child_move_count_obj[search_idx]) + 1.0);
+    const int move_int = node.child_move[search_idx];
+    board.attr("push")(move_int);
+    MoveGuard move_guard(board);
+    const std::uint64_t next_board_key = py::cast<std::uint64_t>(board.attr("zobrist_hash")());
 
-    py::object next_board = node.attr("board").attr("copy")();
-    const int move_int = py::cast<int>(child_move_obj[search_idx]);
-    next_board.attr("push")(move_int);
-    const py::object next_board_key = next_board.attr("zobrist_hash")();
-
-    if (path_keys.contains(next_board_key)) {
+    if (path_keys.find(next_board_key) != path_keys.end()) {
         return 0.5;
     }
 
     if (use_cshogi_is_draw()) {
-        const int draw = py::cast<int>(next_board.attr("is_draw")());
+        const int draw = py::cast<int>(board.attr("is_draw")());
         if (draw != not_repetition()) {
             if (draw == repetition_draw()) {
                 return 0.5;
@@ -223,56 +390,30 @@ double search_impl(py::object node, py::set &path_keys) {
         }
     }
 
-    if (!dl_data_tree().contains(next_board_key)) {
-        const py::tuple current_dl = get_dl_node_func()(node.attr("board")).cast<py::tuple>();
-        const py::object current_dl_node = current_dl[1];
-        if (current_dl_node.is_none()) {
-            const std::string sfen = py::cast<std::string>(node.attr("board").attr("sfen")());
-            throw py::key_error("Current board is not in dl_data_tree: " + sfen);
-        }
-
+    const py::int_ next_key_obj(next_board_key);
+    if (!dl_data_tree().contains(next_key_obj)) {
         py::object new_node = node_class_obj()();
-        new_node.attr("board") = next_board.attr("copy")();
+        new_node.attr("board") = board.attr("copy")();
         new_node.attr("child_move") = py::none();
-        new_node.attr("value") = py::float_(1.0 - py::cast<double>(current_dl_node.attr("value")));
-        dl_data_tree()[next_board_key] = new_node;
+        new_node.attr("value") = py::float_(1.0 - node.value);
+        dl_data_tree()[next_key_obj] = new_node;
+        dl_cpp_tree().emplace(next_board_key, build_cpp_node(next_board_key, new_node));
     }
 
-    py::object next_node_from_tree = dl_data_tree()[next_board_key];
-    if (is_none_or_empty(next_node_from_tree.attr("child_move"))) {
-        const py::tuple current_book = get_book_node_func()(node.attr("board")).cast<py::tuple>();
-        const py::object current_book_node = current_book[1];
-
-        if (!current_book_node.is_none()) {
-            const py::object current_book_child_moves = current_book_node.attr("child_move");
-            const py::object selected_move = child_move_obj[search_idx];
-
-            const bool contains = py::cast<bool>(current_book_child_moves.attr("__contains__")(selected_move));
-            if (contains) {
-                const int idx = py::cast<int>(current_book_child_moves.attr("index")(selected_move));
-                const double score = py::cast<double>(current_book_node.attr("child_score")[py::int_(idx)]);
-                next_node_from_tree.attr("value") = py::float_(1.0 - score_to_value_cpp(score));
-            }
-        }
+    CppNode &next_node = ensure_cpp_node(next_board_key, board);
+    if (next_node.child_move.empty()) {
         depth0_count() += 1;
     }
 
-    const py::tuple next_dl = get_dl_node_func()(next_board).cast<py::tuple>();
-    const py::object next_node = next_dl[1];
-    if (next_node.is_none()) {
-        const std::string sfen = py::cast<std::string>(next_board.attr("sfen")());
-        throw py::key_error("Next board is not in dl_data_tree: " + sfen);
-    }
-
-    next_node.attr("board") = next_board;
-
-    double value = search_impl(next_node, path_keys);
+    double value = search_impl(board, next_board_key, path_keys);
     value = 1.0 - value;
 
-    node.attr("sum_value") = py::float_(py::cast<double>(node.attr("sum_value")) + value);
+    node.sum_value += value;
+    node.child_score_sum[search_idx] += value;
+    node.dirty = true;
 
-    py::object child_score_sum_obj = node.attr("child_score_sum");
-    child_score_sum_obj[search_idx] = py::float_(py::cast<double>(child_score_sum_obj[search_idx]) + value);
+    move_guard.release();
+    board.attr("pop")();
 
     return value;
 }
@@ -295,6 +436,13 @@ void init(py::dict dl_tree_obj,
     get_book_node_func() = std::move(get_book_func);
     node_class_obj() = std::move(node_class);
     depth0_count() = 0;
+    dl_cpp_tree().clear();
+
+    for (auto item : dl_data_tree()) {
+        const std::uint64_t key = py::cast<std::uint64_t>(item.first);
+        py::object node = py::reinterpret_borrow<py::object>(item.second);
+        dl_cpp_tree().emplace(key, build_cpp_node(key, node));
+    }
 
     py::module cshogi = py::module::import("cshogi");
     not_repetition() = py::cast<int>(cshogi.attr("NOT_REPETITION"));
@@ -305,8 +453,18 @@ void init(py::dict dl_tree_obj,
 
 
 double search_cpp(py::object node, py::object path_keys_obj = py::none()) {
-    py::set path_keys = path_keys_obj.is_none() ? py::set() : path_keys_obj.cast<py::set>();
-    return search_impl(std::move(node), path_keys);
+    py::object board = node.attr("board");
+    const std::uint64_t node_key = py::cast<std::uint64_t>(board.attr("zobrist_hash")());
+    std::unordered_set<std::uint64_t> path_keys;
+
+    if (!path_keys_obj.is_none()) {
+        py::set py_path_keys = path_keys_obj.cast<py::set>();
+        for (auto key : py_path_keys) {
+            path_keys.insert(py::cast<std::uint64_t>(key));
+        }
+    }
+
+    return search_impl(board, node_key, path_keys);
 }
 
 
@@ -320,5 +478,6 @@ PYBIND11_MODULE(mcts_cpp, m) {
     m.def("init", &init, "Initialize module globals");
     m.def("search_cpp", &search_cpp, py::arg("node"), py::arg("path_keys") = py::none(), "Run recursive MCTS search");
     m.def("select_max_ucb_child_cpp", &select_max_ucb_child_cpp, "Select child with max UCB");
+    m.def("sync_cpp_to_python", &sync_cpp_to_python, "Sync C++ node stats to Python nodes");
     m.def("get_depth0_count", &get_depth0_count, "Get depth0 count");
 }

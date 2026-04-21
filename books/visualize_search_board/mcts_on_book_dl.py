@@ -658,6 +658,9 @@ if __name__ == "__main__":
     search_total_elapsed = time.time() - search_total_start
     print(f"Total search: {search_total_elapsed:.2f}s ({total_playout_count} playouts, {total_playout_count/search_total_elapsed:.0f} playouts/sec)")
 
+    if USE_CPP:
+        mcts_cpp.sync_cpp_to_python()
+
     print(f"visited_nodes: {len(visited_nodes)}")
     move_count_list = [(dl_data_tree[key].move_count, key) for key in visited_nodes]
     move_count_list.sort(reverse=True)
