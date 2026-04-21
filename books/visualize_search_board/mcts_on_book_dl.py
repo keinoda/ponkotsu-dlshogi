@@ -515,6 +515,7 @@ if __name__ == "__main__":
             with open(DEBUG_TRACE_FILE, "w") as f:
                 f.write("start_debug_trace\n")
 
+    book_parse_start = time.time()
     with open(args.book, "r") as f:
         books = f.readlines()
         books = [s.replace("\n", "") for s in books[1:]]
@@ -553,10 +554,15 @@ if __name__ == "__main__":
     book_tree[board_key].child_move_count = np.zeros(len(book_tree[board_key].child_move))
     book_tree[board_key].child_score = np.array(book_tree[board_key].child_score, dtype=np.float32)
     book_tree[board_key].child_score_sum = np.zeros(len(book_tree[board_key].child_move), dtype=np.float32)
+    book_parse_elapsed = time.time() - book_parse_start
+    print(f"Book parse: {book_parse_elapsed:.2f}s ({len(book_tree)} positions)")
 
     # DLで評価したノードを読み込む
+    pickle_load_start = time.time()
     with open(args.dl_pickle, "rb") as f:
         dl_data_tree = pickle.load(f)
+    pickle_load_elapsed = time.time() - pickle_load_start
+    print(f"Pickle load: {pickle_load_elapsed:.2f}s ({len(dl_data_tree)} nodes)")
 
     if USE_CPP:
         mcts_cpp.init(dl_data_tree, book_tree, visited_nodes,
