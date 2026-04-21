@@ -568,7 +568,26 @@ if __name__ == "__main__":
                 f.write("start_debug_trace\n")
 
     book_parse_start = time.time()
-    if USE_CPP and hasattr(mcts_cpp, 'parse_book_cpp'):
+    if USE_CPP and hasattr(mcts_cpp, 'parse_book_raw_cpp'):
+        keys, sfens, child_offsets, child_move_flat, child_score_flat, child_depth_flat = mcts_cpp.parse_book_raw_cpp(args.book)
+        for i, key in enumerate(keys):
+            start = int(child_offsets[i])
+            end = int(child_offsets[i + 1])
+
+            node = Node()
+            node.board = sfens[i]
+            node.child_move = list(child_move_flat[start:end])
+            node.child_move_count = np.zeros(end - start)
+            node.child_score = np.asarray(child_score_flat[start:end], dtype=np.float32)
+            node.child_score_sum = np.zeros(end - start, dtype=np.float32)
+
+            key_int = int(key)
+            book_tree[key_int] = node
+            # depthなしは-1。既存ロジックでは9999のみ特殊扱いなのでそのまま保持する。
+            book_child_depth_tree[key_int] = child_depth_flat[start:end].tolist()
+
+        print(f"Book parse (C++ raw): {time.time() - book_parse_start:.2f}s ({len(book_tree)} positions)")
+    elif USE_CPP and hasattr(mcts_cpp, 'parse_book_cpp'):
         book_tree, book_child_depth_tree = mcts_cpp.parse_book_cpp(args.book, Node)
         print(f"Book parse (C++): {time.time() - book_parse_start:.2f}s ({len(book_tree)} positions)")
     else:
