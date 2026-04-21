@@ -1,6 +1,5 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
-#include <pybind11/stl.h>
 
 #include <cmath>
 #include <cstdint>
@@ -621,121 +620,6 @@ py::tuple parse_book_cpp(const std::string &filepath, py::object node_class) {
 
     return py::make_tuple(book_tree_out, book_child_depth_tree_out);
 }
-
-py::tuple parse_book_raw_cpp(const std::string &filepath) {
-    ensure_native_init();
-
-    std::ifstream ifs(filepath);
-    if (!ifs.is_open()) {
-        throw std::runtime_error("Cannot open book file: " + filepath);
-    }
-
-    struct ChildEntry {
-        std::string move_usi;
-        int score;
-        int depth;  // -1 means no depth
-    };
-
-    struct BookEntry {
-        std::uint64_t key;
-        std::string sfen;
-        std::vector<ChildEntry> children;
-    };
-
-    std::vector<BookEntry> entries;
-    entries.reserve(2500000);
-
-    Position pos;
-    std::string line;
-
-    // Skip first line (header)
-    std::getline(ifs, line);
-
-    while (std::getline(ifs, line)) {
-        rtrim(line);
-        if (line.empty()) continue;
-
-        if (line.compare(0, 4, "sfen") == 0) {
-            entries.emplace_back();
-            BookEntry &entry = entries.back();
-
-            std::string sfen = line.substr(5);
-            pos.set(sfen);
-            entry.key = pos.getKey();
-            entry.sfen = pos.toSFEN();
-        } else if (!entries.empty()) {
-            BookEntry &entry = entries.back();
-
-            std::istringstream iss(line);
-            ChildEntry child;
-            std::string dummy;
-            iss >> child.move_usi >> dummy >> child.score;
-
-            child.depth = -1;
-            std::string token;
-            while (iss >> token) {
-                try {
-                    size_t pos_end = 0;
-                    int val = std::stoi(token, &pos_end);
-                    if (pos_end == token.size()) {
-                        child.depth = val;
-                        break;
-                    }
-                } catch (...) {
-                    continue;
-                }
-            }
-
-            entry.children.push_back(std::move(child));
-        }
-    }
-
-    const size_t n = entries.size();
-    size_t total_children = 0;
-    for (const auto &entry : entries) {
-        total_children += entry.children.size();
-    }
-
-    auto keys = py::array_t<std::uint64_t>(static_cast<py::ssize_t>(n));
-    auto child_offsets = py::array_t<std::int64_t>(static_cast<py::ssize_t>(n + 1));
-    auto child_score_flat = py::array_t<std::int32_t>(static_cast<py::ssize_t>(total_children));
-    auto child_depth_flat = py::array_t<std::int32_t>(static_cast<py::ssize_t>(total_children));
-
-    std::vector<std::string> sfen_list;
-    sfen_list.reserve(n);
-    std::vector<std::string> child_move_flat;
-    child_move_flat.reserve(total_children);
-
-    auto *keys_ptr = keys.mutable_data();
-    auto *offset_ptr = child_offsets.mutable_data();
-    auto *score_ptr = child_score_flat.mutable_data();
-    auto *depth_ptr = child_depth_flat.mutable_data();
-
-    size_t offset = 0;
-    for (size_t i = 0; i < n; ++i) {
-        const auto &entry = entries[i];
-        keys_ptr[i] = entry.key;
-        sfen_list.push_back(entry.sfen);
-        offset_ptr[i] = static_cast<std::int64_t>(offset);
-
-        for (const auto &child : entry.children) {
-            child_move_flat.push_back(child.move_usi);
-            score_ptr[offset] = static_cast<std::int32_t>(child.score);
-            depth_ptr[offset] = static_cast<std::int32_t>(child.depth);
-            ++offset;
-        }
-    }
-    offset_ptr[n] = static_cast<std::int64_t>(offset);
-
-    return py::make_tuple(
-        keys,
-        py::cast(sfen_list),
-        child_offsets,
-        py::cast(child_move_flat),
-        child_score_flat,
-        child_depth_flat
-    );
-}
 #endif
 
 
@@ -749,7 +633,5 @@ PYBIND11_MODULE(mcts_cpp, m) {
 #ifdef USE_CSHOGI_NATIVE
     m.def("parse_book_cpp", &parse_book_cpp, py::arg("filepath"), py::arg("node_class"),
           "Parse book file using native C++ Position");
-    m.def("parse_book_raw_cpp", &parse_book_raw_cpp, py::arg("filepath"),
-          "Parse book file and return raw columnar arrays");
 #endif
 }
