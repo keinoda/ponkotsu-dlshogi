@@ -217,7 +217,7 @@ if __name__ == "__main__":
     parser.add_argument("book")
     parser.add_argument("out_dir")
     parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--shard_size", type=int, default=4096)
+    parser.add_argument("--shard_size", type=int, default=10000)
     parser.add_argument("--device", type=str, choices=['cpu', 'cuda', 'tensorrt'], default='cpu')
     args = parser.parse_args()
 
