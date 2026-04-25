@@ -9,6 +9,7 @@ import signal
 import sys
 import time
 import tqdm
+from collections import OrderedDict
 
 try:
     import mcts_core
@@ -53,6 +54,12 @@ def backup(node):
 book_tree = dict()
 book_child_depth_tree = dict()
 dl_data_tree = dict()
+dl_shards = []
+dl_lookup_keys = np.empty(0, dtype=np.uint64)
+dl_lookup_sids = np.empty(0, dtype=np.uint32)
+dl_lookup_rows = np.empty(0, dtype=np.uint32)
+dl_cache = OrderedDict()
+DL_CACHE_SIZE = 50000
 depth0_count = 0
 DEBUG_MODE = False
 DEBUG_SKIP_IS_DRAW = False
@@ -216,17 +223,17 @@ def build_rotated_dl_node(node):
 
 def get_dl_node(board):
     board_key = board.zobrist_hash()
-    node = dl_data_tree.get(board_key)
+    node = get_dl_node_by_key(board_key)
     if node is not None:
         if not isinstance(node.board, cshogi.Board):
             node.board = board.copy()
-        if node.child_move is not None:
+        if node.child_move is not None and len(node.child_move) > 0 and not isinstance(node.child_move[0], int):
             node.child_move = [to_move_int(move) for move in node.child_move]
         return board_key, node
 
     rotated_board = rotate(board)
     rotated_key = rotated_board.zobrist_hash()
-    rotated_node = dl_data_tree.get(rotated_key)
+    rotated_node = get_dl_node_by_key(rotated_key)
     if rotated_node is None:
         return board_key, None
 
@@ -432,7 +439,8 @@ def search(node, path_keys=None):
                     return 0.0
 
         # 次の局面が定跡ツリーに登録されていなければ定跡ツリーに追加する
-        if next_board_key not in dl_data_tree:
+        _, existing_next_node = get_dl_node(next_board)
+        if existing_next_node is None:
             _, current_dl_node = get_dl_node(node.board)
             if current_dl_node is None:
                 raise KeyError(f"Current board is not in dl_data_tree: {node.board.sfen()}")
@@ -444,11 +452,12 @@ def search(node, path_keys=None):
             dl_data_tree[next_board_key].value = 1.0 - current_dl_node.value
 
         # 次の局面が末端ノードの場合定跡ツリーに登録されているか確認し、登録されていれば定跡ツリーの値で置き換える
-        if not dl_data_tree[next_board_key].child_move:
+        next_node_for_leaf = existing_next_node if existing_next_node is not None else dl_data_tree[next_board_key]
+        if not next_node_for_leaf.child_move:
             _, current_book_node = get_book_node(node.board)
             if current_book_node is not None and node.child_move[search_node] in current_book_node.child_move:
                 index = current_book_node.child_move.index(node.child_move[search_node])
-                dl_data_tree[next_board_key].value = 1.0 - score_to_value(current_book_node.child_score[index])
+                next_node_for_leaf.value = 1.0 - score_to_value(current_book_node.child_score[index])
             depth0_count += 1
 
         _, next_node = get_dl_node(next_board)
@@ -487,51 +496,135 @@ def list_npz_files(path):
     return files
 
 
-def load_dl_data_tree_npz(path):
-    """Load dl_data_tree from npz format (columnar arrays)."""
-    npz = np.load(path, allow_pickle=True)
-    keys = npz['keys']
-    sfen_bytes = npz['sfen_bytes']
-    values = npz['values']
-    has_children = npz['has_children']
-    child_offsets = npz['child_offsets']
-    child_move_flat = npz['child_move_flat']
-    child_policy_flat = npz['child_policy_flat']
+def _cache_get(key):
+    node = dl_cache.get(key)
+    if node is None:
+        return None
+    dl_cache.move_to_end(key)
+    return node
 
-    n = len(keys)
-    tree = {}
-    for i in range(n):
-        node = Node()
-        sb = sfen_bytes[i]
-        node.board = sb.decode('ascii') if isinstance(sb, bytes) else str(sb)
-        node.value = float(values[i])
 
-        if has_children[i]:
-            start = child_offsets[i]
-            end = child_offsets[i + 1]
-            node.child_move = child_move_flat[start:end].tolist()
-            node.child_move_count = np.zeros(end - start, dtype=np.float32)
-            node.child_score_sum = np.zeros(end - start, dtype=np.float32)
-            node.child_policy = child_policy_flat[start:end].copy()
-        else:
-            node.child_move = None
+def _cache_put(key, node):
+    dl_cache[key] = node
+    dl_cache.move_to_end(key)
+    if len(dl_cache) > DL_CACHE_SIZE:
+        dl_cache.popitem(last=False)
 
-        tree[int(keys[i])] = node
 
-    return tree
+def _find_dl_location(key):
+    if len(dl_lookup_keys) == 0:
+        return None
+
+    key_u64 = np.uint64(key)
+    idx = int(np.searchsorted(dl_lookup_keys, key_u64, side='left'))
+    if idx >= len(dl_lookup_keys) or dl_lookup_keys[idx] != key_u64:
+        return None
+
+    return int(dl_lookup_sids[idx]), int(dl_lookup_rows[idx])
+
+
+def _load_node_from_location(shard_id, row_index):
+    shard = dl_shards[shard_id]
+    node = Node()
+
+    sb = shard['sfen_bytes'][row_index]
+    node.board = sb.decode('ascii') if isinstance(sb, bytes) else str(sb)
+    node.value = float(shard['values'][row_index])
+
+    if bool(shard['has_children'][row_index]):
+        start = int(shard['child_offsets'][row_index])
+        end = int(shard['child_offsets'][row_index + 1])
+        node.child_move = np.asarray(shard['child_move_flat'][start:end], dtype=np.int32).tolist()
+        node.child_move_count = np.zeros(end - start, dtype=np.float32)
+        node.child_score_sum = np.zeros(end - start, dtype=np.float32)
+        node.child_policy = np.asarray(shard['child_policy_flat'][start:end], dtype=np.float32).copy()
+    else:
+        node.child_move = None
+
+    return node
+
+
+def get_dl_node_by_key(key):
+    if key in dl_data_tree:
+        return dl_data_tree[key]
+
+    node = _cache_get(key)
+    if node is not None:
+        return node
+
+    location = _find_dl_location(key)
+    if location is None:
+        return None
+
+    node = _load_node_from_location(location[0], location[1])
+    _cache_put(key, node)
+    return node
 
 
 def load_dl_data_tree_npz_dir(path):
-    tree = {}
+    global dl_shards, dl_lookup_keys, dl_lookup_sids, dl_lookup_rows
+
+    dl_shards = []
+    dl_lookup_keys = np.empty(0, dtype=np.uint64)
+    dl_lookup_sids = np.empty(0, dtype=np.uint32)
+    dl_lookup_rows = np.empty(0, dtype=np.uint32)
+    dl_cache.clear()
+
     npz_files = list_npz_files(path)
     if len(npz_files) == 0:
         raise FileNotFoundError(f"No npz files found under: {path}")
 
-    for npz_path in tqdm.tqdm(npz_files, desc="Load dl npz", dynamic_ncols=True):
-        shard_tree = load_dl_data_tree_npz(npz_path)
-        tree.update(shard_tree)
+    all_keys = []
+    all_sids = []
+    all_rows = []
 
-    return tree
+    for shard_id, npz_path in enumerate(tqdm.tqdm(npz_files, desc="Open dl npz", dynamic_ncols=True)):
+        try:
+            npz = np.load(npz_path, allow_pickle=False, mmap_mode='r')
+        except ValueError:
+            npz = np.load(npz_path, allow_pickle=True, mmap_mode='r')
+
+        keys = np.asarray(npz['keys'], dtype=np.uint64)
+        n = len(keys)
+        dl_shards.append(
+            {
+                'npz': npz,
+                'keys': keys,
+                'sfen_bytes': npz['sfen_bytes'],
+                'values': npz['values'],
+                'has_children': npz['has_children'],
+                'child_offsets': npz['child_offsets'],
+                'child_move_flat': npz['child_move_flat'],
+                'child_policy_flat': npz['child_policy_flat'],
+            }
+        )
+
+        all_keys.append(keys)
+        all_sids.append(np.full(n, shard_id, dtype=np.uint32))
+        all_rows.append(np.arange(n, dtype=np.uint32))
+
+    merged_keys = np.concatenate(all_keys)
+    merged_sids = np.concatenate(all_sids)
+    merged_rows = np.concatenate(all_rows)
+
+    order = np.argsort(merged_keys, kind='mergesort')
+    keys_sorted = merged_keys[order]
+    sids_sorted = merged_sids[order]
+    rows_sorted = merged_rows[order]
+
+    # Keep the last duplicate key so newer shards override older entries.
+    if len(keys_sorted) > 1:
+        keep = np.ones(len(keys_sorted), dtype=np.bool_)
+        keep[:-1] = keys_sorted[:-1] != keys_sorted[1:]
+        keys_sorted = keys_sorted[keep]
+        sids_sorted = sids_sorted[keep]
+        rows_sorted = rows_sorted[keep]
+
+    dl_lookup_keys = keys_sorted
+    dl_lookup_sids = sids_sorted
+    dl_lookup_rows = rows_sorted
+
+    return len(dl_lookup_keys)
 
 
 if __name__ == "__main__":
@@ -551,8 +644,11 @@ if __name__ == "__main__":
     args.add_argument('--rotated-dl-share-stats', action='store_true')
     args.add_argument('--use-cpp', action='store_true')
     args.add_argument('--use-cython', action='store_true')
+    args.add_argument('--dl-cache-size', type=int, default=50000)
     args.add_argument('--visited-nodes-limit', type=int, default=1000 * 10)
     args = args.parse_args()
+
+    DL_CACHE_SIZE = args.dl_cache_size
 
     if args.use_cpp:
         if _HAS_CPP:
@@ -634,11 +730,16 @@ if __name__ == "__main__":
         book_parse_elapsed = time.time() - book_parse_start
         print(f"Book parse: {book_parse_elapsed:.2f}s ({len(book_tree)} positions)")
 
-    # DLで評価したノードを読み込む
+    # DLで評価したノードを読み込む（mmap + 遅延ロード）
     pickle_load_start = time.time()
-    dl_data_tree = load_dl_data_tree_npz_dir(args.dl_dir)
+    indexed_count = load_dl_data_tree_npz_dir(args.dl_dir)
     pickle_load_elapsed = time.time() - pickle_load_start
-    print(f"Pickle load: {pickle_load_elapsed:.2f}s ({len(dl_data_tree)} nodes)")
+    print(f"DL index load: {pickle_load_elapsed:.2f}s ({indexed_count} nodes, cache={DL_CACHE_SIZE})")
+
+    if USE_CPP or USE_CYTHON:
+        print("WARNING: Lazy dl_dir loading is enabled. Disable C++/Cython mode and use pure Python MCTS.")
+        USE_CPP = False
+        USE_CYTHON = False
 
     if USE_CPP:
         mcts_cpp.init(dl_data_tree, book_tree, visited_nodes,
@@ -744,16 +845,26 @@ if __name__ == "__main__":
         mcts_cpp.sync_cpp_to_python()
 
     print(f"visited_nodes: {len(visited_nodes)}")
-    move_count_list = [(dl_data_tree[key].move_count, key) for key in visited_nodes]
+    move_count_list = []
+    for key in visited_nodes:
+        node = get_dl_node_by_key(key)
+        if node is None:
+            continue
+        move_count_list.append((node.move_count, key))
     move_count_list.sort(reverse=True)
     move_count_list = move_count_list[:min(len(move_count_list), 1000)]
 
     sfens_list = []
     moves_list = []
     for _, key in move_count_list:
-        sfens_list.append(f"sfen {dl_data_tree[key].board.sfen()}\n")
+        node = get_dl_node_by_key(key)
+        if node is None:
+            continue
+        if not isinstance(node.board, cshogi.Board):
+            node.board = cshogi.Board(sfen=node.board)
+        sfens_list.append(f"sfen {node.board.sfen()}\n")
         if args.boards:
-            board = dl_data_tree[key].board.copy()
+            board = node.board.copy()
             history = " ".join([cshogi.move_to_usi(move) for move in board.history])
             current_sfen = board.sfen()
             moves_list.append(f"{current_sfen}, {history}\n")
