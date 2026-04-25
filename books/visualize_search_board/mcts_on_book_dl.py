@@ -4,7 +4,6 @@ from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_S
 import faulthandler
 import numpy as np
 import os
-import pickle
 import random
 import signal
 import sys
@@ -479,6 +478,15 @@ def rotate(board):
     return cshogi.Board(cshogi.rotate_sfen(board.sfen()))
 
 
+def list_npz_files(path):
+    if not os.path.isdir(path):
+        raise NotADirectoryError(f"Expected directory path for dl_dir: {path}")
+
+    files = [os.path.join(path, name) for name in os.listdir(path) if name.endswith('.npz')]
+    files.sort()
+    return files
+
+
 def load_dl_data_tree_npz(path):
     """Load dl_data_tree from npz format (columnar arrays)."""
     npz = np.load(path, allow_pickle=True)
@@ -513,10 +521,23 @@ def load_dl_data_tree_npz(path):
     return tree
 
 
+def load_dl_data_tree_npz_dir(path):
+    tree = {}
+    npz_files = list_npz_files(path)
+    if len(npz_files) == 0:
+        raise FileNotFoundError(f"No npz files found under: {path}")
+
+    for npz_path in tqdm.tqdm(npz_files, desc="Load dl npz", dynamic_ncols=True):
+        shard_tree = load_dl_data_tree_npz(npz_path)
+        tree.update(shard_tree)
+
+    return tree
+
+
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument('book')
-    args.add_argument('dl_pickle')
+    args.add_argument('dl_dir')
     args.add_argument('sfens')
     args.add_argument('--boards', type=str)
     args.add_argument('--root_sfens', type=str, nargs='*', default=[])
@@ -615,11 +636,7 @@ if __name__ == "__main__":
 
     # DLで評価したノードを読み込む
     pickle_load_start = time.time()
-    if args.dl_pickle.endswith('.npz'):
-        dl_data_tree = load_dl_data_tree_npz(args.dl_pickle)
-    else:
-        with open(args.dl_pickle, "rb") as f:
-            dl_data_tree = pickle.load(f)
+    dl_data_tree = load_dl_data_tree_npz_dir(args.dl_dir)
     pickle_load_elapsed = time.time() - pickle_load_start
     print(f"Pickle load: {pickle_load_elapsed:.2f}s ({len(dl_data_tree)} nodes)")
 
