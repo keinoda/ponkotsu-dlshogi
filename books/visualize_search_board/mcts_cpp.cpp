@@ -399,12 +399,21 @@ double search_impl(py::object board, std::uint64_t node_key, std::unordered_set<
 
     const py::int_ next_key_obj(next_board_key);
     if (!dl_data_tree().contains(next_key_obj)) {
-        py::object new_node = node_class_obj()();
-        new_node.attr("board") = board.attr("copy")();
-        new_node.attr("child_move") = py::none();
-        new_node.attr("value") = py::float_(1.0 - node.value);
-        dl_data_tree()[next_key_obj] = new_node;
-        dl_cpp_tree().emplace(next_board_key, build_cpp_node(next_board_key, new_node));
+        // Lazy-load from Python-side storage first.
+        const py::tuple next_dl = get_dl_node_func()(board).cast<py::tuple>();
+        py::object loaded_node = next_dl[1];
+        if (!loaded_node.is_none()) {
+            dl_data_tree()[next_key_obj] = loaded_node;
+            dl_cpp_tree().emplace(next_board_key, build_cpp_node(next_board_key, loaded_node));
+        } else {
+            // If not found even after lazy lookup, create a provisional leaf node.
+            py::object new_node = node_class_obj()();
+            new_node.attr("board") = board.attr("copy")();
+            new_node.attr("child_move") = py::none();
+            new_node.attr("value") = py::float_(1.0 - node.value);
+            dl_data_tree()[next_key_obj] = new_node;
+            dl_cpp_tree().emplace(next_board_key, build_cpp_node(next_board_key, new_node));
+        }
     }
 
     CppNode &next_node = ensure_cpp_node(next_board_key, board);

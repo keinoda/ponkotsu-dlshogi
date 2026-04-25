@@ -736,11 +736,6 @@ if __name__ == "__main__":
     pickle_load_elapsed = time.time() - pickle_load_start
     print(f"DL index load: {pickle_load_elapsed:.2f}s ({indexed_count} nodes, cache={DL_CACHE_SIZE})")
 
-    if USE_CPP or USE_CYTHON:
-        print("WARNING: Lazy dl_dir loading is enabled. Disable C++/Cython mode and use pure Python MCTS.")
-        USE_CPP = False
-        USE_CYTHON = False
-
     if USE_CPP:
         mcts_cpp.init(dl_data_tree, book_tree, visited_nodes,
                       USE_CSHOGI_IS_DRAW, get_dl_node, get_book_node, Node)
