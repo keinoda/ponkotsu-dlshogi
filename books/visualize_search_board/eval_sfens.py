@@ -6,6 +6,11 @@ import pickle
 import tqdm
 
 
+def make_rotated_key(board):
+    rotated = cshogi.Board(cshogi.rotate_sfen(board.sfen()))
+    return rotated.zobrist_hash()
+
+
 def load_out_data(path):
     if not os.path.exists(path):
         return None
@@ -126,14 +131,32 @@ def eval_sfens(session, sfens, batch_size, out=None):
 
     if out is None:
         out = dict()
+    existing_keys = set(out.keys())
+    queued_canonical_keys = set()
+
     eval_board_list = []
     for sfen in sfens:
         board = cshogi.Board(sfen=sfen)
         key = board.zobrist_hash()
+        rotated_key = make_rotated_key(board)
+        canonical_key = min(key, rotated_key)
+
+        if canonical_key in queued_canonical_keys:
+            continue
+
+        # Skip if either the same position or its rotated counterpart already exists.
+        if key in existing_keys or rotated_key in existing_keys:
+            if key in out and out[key].child_policy is None:
+                eval_board_list.append(board)
+                queued_canonical_keys.add(canonical_key)
+            continue
+
         if key not in out:
             eval_board_list.append(board)
+            queued_canonical_keys.add(canonical_key)
         elif out[key].child_policy is None:
             eval_board_list.append(board)
+            queued_canonical_keys.add(canonical_key)
 
     for i in tqdm.tqdm(range(0, len(eval_board_list), batch_size)):
         for j in range(batch_size):
