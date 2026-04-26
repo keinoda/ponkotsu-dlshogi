@@ -11,3 +11,4 @@
 *.so
 *.o
 !books/makebook/startup*.txt
+!*requirements.txt
