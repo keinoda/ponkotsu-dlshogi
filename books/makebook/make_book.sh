@@ -4,6 +4,7 @@
 N=1
 EVALDIR=""
 BOOKDIR=""
+MODEL=""
 
 # オプション解析
 while [[ $# -gt 0 ]]; do
@@ -20,12 +21,17 @@ while [[ $# -gt 0 ]]; do
             BOOKDIR="$2"
             shift 2
             ;;
+        --model)
+            MODEL="$2"
+            shift 2
+            ;;
         --help)
-            echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR"
+            echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR --model PATH"
             echo "Options:"
             echo "  --iterations N      Number of iterations (default: 1)"
             echo "  --eval-dir DIR      Path to evaluation directory"
             echo "  --book-dir DIR      Path to book directory"
+            echo "  --model PATH        Path to ONNX model file"
             echo "  --help              Show this help message"
             exit 0
             ;;
@@ -37,9 +43,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 引数チェック
-if [ -z "$EVALDIR" ] || [ -z "$BOOKDIR" ]; then
+if [ -z "$EVALDIR" ] || [ -z "$BOOKDIR" ] || [ -z "$MODEL" ]; then
     echo "Error: Missing required arguments"
-    echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR"
+    echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR --model PATH"
     exit 1
 fi
 
@@ -80,17 +86,17 @@ setup_startup_file() {
 
 for ((i=1; i<=$N; i++)); do
     # think処理
-    cp startup_think.txt startup.txt
+    cp "$SCRIPT_DIR/startup_think.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc
     
     # merge_delta処理
-    cp startup_merge_delta.txt startup.txt
+    cp "$SCRIPT_DIR/startup_merge_delta.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
     
     # petashock処理
-    cp startup_petashock.txt startup.txt
+    cp "$SCRIPT_DIR/startup_petashock.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
     
@@ -98,27 +104,27 @@ for ((i=1; i<=$N; i++)); do
     python "$GET_SEARCH_BOARD_SCRIPT" test_book_petashock.db first_board_sfens.txt test_multipv.sfens
     
     # think_multipv処理
-    cp startup_think_multipv.txt startup.txt
+    cp "$SCRIPT_DIR/startup_think_multipv.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc
 
     # merge_multipv_delta処理
-    cp startup_merge_multipv_delta.txt startup.txt
+    cp "$SCRIPT_DIR/startup_merge_multipv_delta.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
     
     # merge処理
-    cp startup_merge.txt startup.txt
+    cp "$SCRIPT_DIR/startup_merge.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
     
     # petashock処理
-    cp startup_petashock.txt startup.txt
+    cp "$SCRIPT_DIR/startup_petashock.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
     
     # eval処理
-    python "$EVAL_SFENS_SCRIPT" /home/jj1guj/ponkotsu-wcsc35/model.onnx out_book/test_book.db eval_dl --batch_size 1024 --device cuda
+    python "$EVAL_SFENS_SCRIPT" "$MODEL" out_book/test_book.db eval_dl --batch_size 1024 --device cuda
     
     # mcts処理
     python "$MCTS_SCRIPT" test_book_petashock.db eval_dl test.sfens --root_sfens root_sfens.txt csa_root.sfens --use-cpp
