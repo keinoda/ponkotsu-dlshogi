@@ -1,0 +1,8 @@
+setoption name EvalDir value @EVALDIR@
+setoption name USI_Hash value 28000
+setoption name BookDir value @BOOKDIR@
+setoption name Threads value 28
+setoption name FV_SCALE value 28
+setoption name MultiPV value 4
+makebook think @BOOKDIR@/test_multipv.sfens @BOOKDIR@/out_book/test_book_multipv.db moves 320 nodes 150000000 depth 100
+quit
