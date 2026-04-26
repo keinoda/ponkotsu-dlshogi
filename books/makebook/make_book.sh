@@ -61,6 +61,14 @@ trap "cd '$ORIGINAL_DIR'" EXIT
 # BOOKDIR下で作業
 cd "$BOOKDIR" || exit 1
 
+# C++拡張のビルドチェック
+MCTS_CPP_SO=$(find "$SCRIPTS_DIR" -name "mcts_cpp.cpython-*.so" 2>/dev/null | head -1)
+if [ -z "$MCTS_CPP_SO" ]; then
+    echo "Building mcts_cpp extension..."
+    python -c "import pybind11" >/dev/null 2>&1 || python -m pip install pybind11
+    (cd "$SCRIPTS_DIR" && python setup_cpp.py build_ext --inplace)
+fi
+
 # パス置換の関数
 setup_startup_file() {
     local template_file=$1
