@@ -1,0 +1,5 @@
+cshogi
+numpy
+onnxruntime-gpu
+tqdm
+pybind11
