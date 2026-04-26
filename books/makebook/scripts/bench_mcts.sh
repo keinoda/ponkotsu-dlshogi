@@ -71,7 +71,7 @@ echo "============================================================"
 echo "C++ 拡張ビルド"
 echo "============================================================"
 python -c "import pybind11" >/dev/null 2>&1 || python -m pip install pybind11
-python setup_cpp.py build_ext --inplace
+python "$SCRIPT_DIR/../makebook/scripts/setup_cpp.py" build_ext --inplace
 echo ""
 
 # --- Python 版 ---
@@ -79,7 +79,7 @@ echo "============================================================"
 echo "[1/2] Pure Python で実行"
 echo "============================================================"
 START_PY=$(python -c "import time; print(time.time())")
-python mcts_on_book_dl.py \
+python "$SCRIPT_DIR/../makebook/scripts/mcts_on_book_dl.py" \
     "$BOOK" "$DL_PICKLE" "$SFENS_PY" \
     --visited-nodes-limit 0 \
     --first_board_sfen_output "$FIRST_PY" \
@@ -95,7 +95,7 @@ echo "============================================================"
 echo "[2/2] C++ で実行"
 echo "============================================================"
 START_CPP=$(python -c "import time; print(time.time())")
-python mcts_on_book_dl.py \
+python "$SCRIPT_DIR/../makebook/scripts/mcts_on_book_dl.py" \
     "$BOOK" "$DL_PICKLE" "$SFENS_CPP" \
     --use-cpp \
     --visited-nodes-limit 0 \

@@ -1,7 +1,10 @@
 import pickle
 import argparse
+import sys
+from pathlib import Path
 import numpy as np
 import tqdm
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "makebook" / "scripts"))
 from mcts_on_book_dl import Node, softmax_temperature_with_normalization
 
 args = argparse.ArgumentParser()

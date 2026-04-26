@@ -8,7 +8,7 @@ import numpy as np
 
 
 def load_module():
-    module_path = Path(__file__).with_name("mcts_on_book_dl.py")
+    module_path = Path(__file__).resolve().parent / "mcts_on_book_dl.py"
     spec = importlib.util.spec_from_file_location("mcts_on_book_dl", module_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

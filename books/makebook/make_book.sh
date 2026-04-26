@@ -43,14 +43,14 @@ if [ -z "$EVALDIR" ] || [ -z "$BOOKDIR" ]; then
     exit 1
 fi
 
-# スクリプトディレクトリから ponkotsu_wcsc33 ルートを計算
+# スクリプトディレクトリを計算
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PONKOTSU_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Pythonスクリプトへのパスを定義
-GET_SEARCH_BOARD_SCRIPT="$PONKOTSU_ROOT/books/visualize_search_board/get_search_board_multipv.py"
-EVAL_SFENS_SCRIPT="$PONKOTSU_ROOT/books/visualize_search_board/eval_sfens.py"
-MCTS_SCRIPT="$PONKOTSU_ROOT/books/visualize_search_board/mcts_on_book_dl.py"
+SCRIPTS_DIR="$SCRIPT_DIR/scripts"
+GET_SEARCH_BOARD_SCRIPT="$SCRIPTS_DIR/get_search_board_multipv.py"
+EVAL_SFENS_SCRIPT="$SCRIPTS_DIR/eval_sfens.py"
+MCTS_SCRIPT="$SCRIPTS_DIR/mcts_on_book_dl.py"
 
 # 元のディレクトリを保存
 ORIGINAL_DIR="$(pwd)"
