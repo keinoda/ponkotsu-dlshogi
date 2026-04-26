@@ -10,3 +10,4 @@
 *.log
 *.so
 *.o
+!books/makebook/startup*.txt
