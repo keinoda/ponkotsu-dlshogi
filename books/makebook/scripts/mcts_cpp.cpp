@@ -15,6 +15,7 @@
 #ifdef USE_CSHOGI_NATIVE
 #include "init.hpp"
 #include "position.hpp"
+#include "cshogi.h"
 #endif
 
 namespace py = pybind11;
@@ -629,6 +630,60 @@ py::tuple parse_book_cpp(const std::string &filepath, py::object node_class) {
 
     return py::make_tuple(book_tree_out, book_child_depth_tree_out);
 }
+
+py::tuple parse_eval_sfens_cpp(const std::string &filepath) {
+    ensure_native_init();
+
+    std::ifstream ifs(filepath);
+    if (!ifs.is_open()) {
+        throw std::runtime_error("Cannot open book file: " + filepath);
+    }
+
+    std::vector<std::string> sfens;
+    std::vector<std::uint64_t> keys;
+    sfens.reserve(1000000);
+    keys.reserve(1000000);
+
+    std::string line;
+    // Skip first line (header)
+    std::getline(ifs, line);
+
+    Position pos;
+    Position rotated_pos;
+
+    while (std::getline(ifs, line)) {
+        rtrim(line);
+        if (line.empty()) continue;
+
+        if (line.compare(0, 4, "sfen") == 0) {
+            std::string sfen = line.substr(5);
+
+            pos.set(sfen);
+            std::uint64_t key = pos.getKey();
+
+            std::string rotated_sfen = __rotate_sfen(sfen);
+            rotated_pos.set(rotated_sfen);
+            std::uint64_t rotated_key = rotated_pos.getKey();
+
+            std::uint64_t canonical_key = std::min(key, rotated_key);
+
+            sfens.push_back(pos.toSFEN());
+            keys.push_back(canonical_key);
+        }
+    }
+
+    // Build Python list of sfens
+    py::list sfen_list;
+    for (auto &s : sfens) {
+        sfen_list.append(py::cast(s));
+    }
+
+    // Build numpy array of canonical keys
+    auto canonical_keys = py::array_t<std::uint64_t>(static_cast<py::ssize_t>(keys.size()));
+    std::memcpy(canonical_keys.mutable_data(), keys.data(), keys.size() * sizeof(std::uint64_t));
+
+    return py::make_tuple(sfen_list, canonical_keys);
+}
 #endif
 
 
@@ -642,5 +697,7 @@ PYBIND11_MODULE(mcts_cpp, m) {
 #ifdef USE_CSHOGI_NATIVE
     m.def("parse_book_cpp", &parse_book_cpp, py::arg("filepath"), py::arg("node_class"),
           "Parse book file using native C++ Position");
+    m.def("parse_eval_sfens_cpp", &parse_eval_sfens_cpp, py::arg("filepath"),
+          "Parse book file and return sfens with canonical keys");
 #endif
 }

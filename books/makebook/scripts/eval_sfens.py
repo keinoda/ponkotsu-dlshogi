@@ -5,6 +5,12 @@ import os
 import time
 import tqdm
 
+try:
+    import mcts_cpp
+    _HAS_CPP = hasattr(mcts_cpp, 'parse_eval_sfens_cpp')
+except ImportError:
+    _HAS_CPP = False
+
 
 def make_rotated_key(board):
     rotated = cshogi.Board(cshogi.rotate_sfen(board.sfen()))
@@ -124,7 +130,7 @@ def parse_eval_sfens(book_path):
             yield ' '.join(line.split()[1:]).strip()
 
 
-def eval_sfens_to_dir(session, sfens, batch_size, out_dir, existing_canonical_keys, shard_size):
+def eval_sfens_to_dir(session, sfens, batch_size, out_dir, existing_canonical_keys, shard_size, precomputed_canonical_keys=None):
     x1 = np.empty((batch_size, FEATURES1_NUM, 9, 9), dtype=np.float32)
     x2 = np.empty((batch_size, FEATURES2_NUM, 9, 9), dtype=np.float32)
 
@@ -180,14 +186,18 @@ def eval_sfens_to_dir(session, sfens, batch_size, out_dir, existing_canonical_ke
         batch_boards.clear()
         batch_canonical_keys.clear()
 
-    for sfen in sfens:
+    for idx, sfen in enumerate(sfens):
         total_seen += 1
-        board = cshogi.Board(sfen=sfen)
-        canonical_key = make_canonical_key(board)
+        if precomputed_canonical_keys is not None:
+            canonical_key = int(precomputed_canonical_keys[idx])
+        else:
+            board_tmp = cshogi.Board(sfen=sfen)
+            canonical_key = make_canonical_key(board_tmp)
         if canonical_key in existing_canonical_keys:
             skipped_existing += 1
             continue
 
+        board = cshogi.Board(sfen=sfen) if precomputed_canonical_keys is not None else board_tmp
         batch_boards.append(board)
         batch_canonical_keys.append(canonical_key)
 
@@ -235,14 +245,29 @@ if __name__ == "__main__":
     existing_canonical_keys = load_existing_canonical_keys(args.out_dir)
     print(f'indexed canonical keys: {len(existing_canonical_keys)}')
 
-    stats = eval_sfens_to_dir(
-        session,
-        parse_eval_sfens(args.book),
-        batch_size,
-        args.out_dir,
-        existing_canonical_keys,
-        args.shard_size,
-    )
+    if _HAS_CPP:
+        print('Using C++ book parser...')
+        parse_start = time.time()
+        sfens_list, canonical_keys_arr = mcts_cpp.parse_eval_sfens_cpp(args.book)
+        print(f'Book parse (C++): {time.time() - parse_start:.2f}s ({len(sfens_list)} positions)')
+        stats = eval_sfens_to_dir(
+            session,
+            sfens_list,
+            batch_size,
+            args.out_dir,
+            existing_canonical_keys,
+            args.shard_size,
+            precomputed_canonical_keys=canonical_keys_arr,
+        )
+    else:
+        stats = eval_sfens_to_dir(
+            session,
+            parse_eval_sfens(args.book),
+            batch_size,
+            args.out_dir,
+            existing_canonical_keys,
+            args.shard_size,
+        )
     print(f"total_seen={stats['total_seen']}")
     print(f"skipped_existing={stats['skipped_existing']}")
     print(f"saved_positions={stats['saved_positions']}")
