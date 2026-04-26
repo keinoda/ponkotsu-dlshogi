@@ -2,6 +2,7 @@ import argparse
 import cshogi
 from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR, BLACK, WHITE
 import faulthandler
+import functools
 import numpy as np
 import os
 import random
@@ -47,7 +48,7 @@ def backup(node):
 book_tree = dict()
 book_child_depth_tree = dict()
 dl_data_tree = dict()
-dl_shards = []
+dl_shard_paths = []
 dl_lookup_keys = np.empty(0, dtype=np.uint64)
 dl_lookup_sids = np.empty(0, dtype=np.uint32)
 dl_lookup_rows = np.empty(0, dtype=np.uint32)
@@ -504,6 +505,19 @@ def _cache_put(key, node):
         dl_cache.popitem(last=False)
 
 
+@functools.lru_cache(maxsize=32)
+def _open_shard(shard_id):
+    npz = np.load(dl_shard_paths[shard_id], allow_pickle=True)
+    return {
+        'sfen_bytes': npz['sfen_bytes'],
+        'values': npz['values'],
+        'has_children': npz['has_children'],
+        'child_offsets': npz['child_offsets'],
+        'child_move_flat': npz['child_move_flat'],
+        'child_policy_flat': npz['child_policy_flat'],
+    }
+
+
 def _find_dl_location(key):
     if len(dl_lookup_keys) == 0:
         return None
@@ -517,7 +531,7 @@ def _find_dl_location(key):
 
 
 def _load_node_from_location(shard_id, row_index):
-    shard = dl_shards[shard_id]
+    shard = _open_shard(shard_id)
     node = Node()
 
     sb = shard['sfen_bytes'][row_index]
@@ -555,13 +569,14 @@ def get_dl_node_by_key(key):
 
 
 def load_dl_data_tree_npz_dir(path):
-    global dl_shards, dl_lookup_keys, dl_lookup_sids, dl_lookup_rows
+    global dl_shard_paths, dl_lookup_keys, dl_lookup_sids, dl_lookup_rows
 
-    dl_shards = []
+    dl_shard_paths = []
     dl_lookup_keys = np.empty(0, dtype=np.uint64)
     dl_lookup_sids = np.empty(0, dtype=np.uint32)
     dl_lookup_rows = np.empty(0, dtype=np.uint32)
     dl_cache.clear()
+    _open_shard.cache_clear()
 
     npz_files = list_npz_files(path)
     if len(npz_files) == 0:
@@ -571,26 +586,12 @@ def load_dl_data_tree_npz_dir(path):
     all_sids = []
     all_rows = []
 
-    for shard_id, npz_path in enumerate(tqdm.tqdm(npz_files, desc="Open dl npz", dynamic_ncols=True)):
-        try:
-            npz = np.load(npz_path, allow_pickle=False, mmap_mode='r')
-        except ValueError:
-            npz = np.load(npz_path, allow_pickle=True, mmap_mode='r')
+    for shard_id, npz_path in enumerate(tqdm.tqdm(npz_files, desc="Index dl npz", dynamic_ncols=True)):
+        with np.load(npz_path, allow_pickle=True) as npz:
+            keys = np.array(npz['keys'], dtype=np.uint64)
 
-        keys = np.asarray(npz['keys'], dtype=np.uint64)
+        dl_shard_paths.append(npz_path)
         n = len(keys)
-        dl_shards.append(
-            {
-                'npz': npz,
-                'keys': keys,
-                'sfen_bytes': npz['sfen_bytes'],
-                'values': npz['values'],
-                'has_children': npz['has_children'],
-                'child_offsets': npz['child_offsets'],
-                'child_move_flat': npz['child_move_flat'],
-                'child_policy_flat': npz['child_policy_flat'],
-            }
-        )
 
         all_keys.append(keys)
         all_sids.append(np.full(n, shard_id, dtype=np.uint32))
