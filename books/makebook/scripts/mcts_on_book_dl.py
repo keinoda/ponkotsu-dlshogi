@@ -12,18 +12,11 @@ import tqdm
 from collections import OrderedDict
 
 try:
-    import mcts_core
-    _HAS_CYTHON = True
-except ImportError:
-    _HAS_CYTHON = False
-
-try:
     import mcts_cpp
     _HAS_CPP = True
 except ImportError:
     _HAS_CPP = False
 
-USE_CYTHON = False
 USE_CPP = False
 
 c_puct = 0.1
@@ -643,7 +636,6 @@ if __name__ == "__main__":
     args.add_argument('--use-cshogi-is-draw', action='store_true')
     args.add_argument('--rotated-dl-share-stats', action='store_true')
     args.add_argument('--use-cpp', action='store_true')
-    args.add_argument('--use-cython', action='store_true')
     args.add_argument('--dl-cache-size', type=int, default=50000)
     args.add_argument('--visited-nodes-limit', type=int, default=1000 * 10)
     args = args.parse_args()
@@ -655,12 +647,6 @@ if __name__ == "__main__":
             USE_CPP = True
         else:
             print("WARNING: --use-cpp specified but mcts_cpp not found. Falling back to pure Python.")
-
-    if args.use_cython and not USE_CPP:
-        if _HAS_CYTHON:
-            USE_CYTHON = True
-        else:
-            print("WARNING: --use-cython specified but mcts_core not found. Falling back to pure Python.")
 
     ROTATED_DL_SHARE_STATS = args.rotated_dl_share_stats
     USE_CSHOGI_IS_DRAW = args.use_cshogi_is_draw
@@ -741,11 +727,6 @@ if __name__ == "__main__":
                       USE_CSHOGI_IS_DRAW, get_dl_node, get_book_node, Node)
         search_func = mcts_cpp.search_cpp
         print("Using C++-optimized MCTS")
-    elif USE_CYTHON:
-        mcts_core.init(dl_data_tree, book_tree, visited_nodes,
-                       USE_CSHOGI_IS_DRAW, get_dl_node, get_book_node, Node)
-        search_func = mcts_core.search_cy
-        print("Using Cython-optimized MCTS")
     else:
         search_func = search
         print("Using pure Python MCTS")
