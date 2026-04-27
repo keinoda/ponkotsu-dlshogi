@@ -540,11 +540,7 @@ def _load_node_from_location(shard_id, row_index):
 
     if bool(shard['has_children'][row_index]):
         start = int(shard['child_offsets'][row_index])
-        end = len(shard['child_move_flat'])
-        for next_row in range(row_index + 1, len(shard['child_offsets'])):
-            if bool(shard['has_children'][next_row]):
-                end = int(shard['child_offsets'][next_row])
-                break
+        end = int(shard['child_offsets'][row_index + 1])
         node.child_move = np.asarray(shard['child_move_flat'][start:end], dtype=np.int32).tolist()
         node.child_move_count = np.zeros(end - start, dtype=np.float32)
         node.child_score_sum = np.zeros(end - start, dtype=np.float32)
