@@ -61,6 +61,14 @@ DEBUG_SKIP_IS_DRAW = False
 DEBUG_TRACE_FILE = None
 USE_CSHOGI_IS_DRAW = False
 ROTATED_DL_SHARE_STATS = False
+LOG_FILE = None
+
+
+def log_print(message):
+    print(message)
+    if LOG_FILE is not None:
+        LOG_FILE.write(message + "\n")
+        LOG_FILE.flush()
 
 
 def debug_log(message):
@@ -300,7 +308,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
         # policyの上位何手でval_sum_thresholdを超えるか確認する
         _, current_dl_node = get_dl_node(current_node.board)
         if current_dl_node is None or current_dl_node.child_policy is None:
-            print("Current board is not in dl_data_tree. Stop at current board.")
+            log_print("Current board is not in dl_data_tree. Stop at current board.")
             break
 
         child_value_sorted = np.sort(current_dl_node.child_policy)[::-1]
@@ -312,7 +320,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
 
         # val_sum_thresholdを超える手が閾値未満なら手を進める
         if val_sum_threshold_count >= book_moves_threshold and len(current_node.child_move) < book_moves_threshold:
-            print(f"Reached threshold at depth with {len(current_node.child_move)} moves")
+            log_print(f"Reached threshold at depth with {len(current_node.child_move)} moves")
             break
 
         if current_node.board.turn == turn or eval_diff == 0:
@@ -342,7 +350,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                     detour_key = detour_entry["key"]
                     detour_move = detour_node.child_move[detour_child_index]
 
-                    print(
+                    log_print(
                         f"Repetition detected. Use closest-eval detour move: {detour_move} "
                         f"(score={detour_node.child_score[detour_child_index]}, best={detour_node.child_score[0]})"
                     )
@@ -368,7 +376,7 @@ def select_root_board(sfen='', turn=BLACK, eval_diff=0, book_moves_threshold=4):
                     seen_path_keys = {detour_key, current_key}
                     continue
 
-            print("Repetition detected but no detour candidate found. Stop at current board.")
+            log_print("Repetition detected but no detour candidate found. Stop at current board.")
             break
 
         next_board_key, next_node = get_book_node(next_board)
@@ -640,9 +648,15 @@ if __name__ == "__main__":
     args.add_argument('--use-cpp', action='store_true')
     args.add_argument('--dl-cache-size', type=int, default=50000)
     args.add_argument('--visited-nodes-limit', type=int, default=1000 * 10)
+    args.add_argument('--log-file', type=str, default='mcts_search.log')
     args = args.parse_args()
 
     DL_CACHE_SIZE = args.dl_cache_size
+
+    if args.log_file:
+        LOG_FILE = open(args.log_file, "w")
+    else:
+        LOG_FILE = None
 
     if args.use_cpp:
         if _HAS_CPP:
@@ -748,8 +762,8 @@ if __name__ == "__main__":
     for root_sfen in root_board_sfen_list:
         first_board, first_board_key = select_root_board(sfen=root_sfen, book_moves_threshold=args.book_moves_threshold)
         first_board_sfen_list.append(f"{first_board.sfen()}\n")
-        print(f"Root sfen: {root_sfen}")
-        print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
+        log_print(f"Root sfen: {root_sfen}")
+        log_print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         _, first_dl_node = get_dl_node(first_board)
         if first_dl_node is None:
@@ -769,7 +783,7 @@ if __name__ == "__main__":
             bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
 
         count = 0
-        print("Starting search...")
+        log_print("Starting search...")
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
             search_func(first_dl_node)
@@ -787,7 +801,7 @@ if __name__ == "__main__":
             turn = WHITE
         first_board, first_board_key = select_root_board(turn=turn, eval_diff=args.eval_diff, book_moves_threshold=args.book_moves_threshold)
         first_board_sfen_list.append(f"{first_board.sfen()}\n")
-        print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
+        log_print(f"search board history: {' '.join([cshogi.move_to_usi(move) for move in first_board.history])}")
 
         _, first_dl_node = get_dl_node(first_board)
         if first_dl_node is None:
@@ -807,7 +821,7 @@ if __name__ == "__main__":
             bestmove_board_sfen_list.append(f"sfen {bestmove_board.sfen()}\n")
 
         count = 0
-        print("Starting search...")
+        log_print("Starting search...")
         pbar = tqdm.tqdm(desc="MCTS", dynamic_ncols=True)
         while count < playout_num:
             search_func(first_dl_node)
@@ -815,15 +829,15 @@ if __name__ == "__main__":
             count += 1
         pbar.close()
         total_playout_count += playout_num
-        print(f"visited nodes: {len(visited_nodes)}")
+        log_print(f"visited nodes: {len(visited_nodes)}")
 
     search_total_elapsed = time.time() - search_total_start
-    print(f"Total search: {search_total_elapsed:.2f}s ({total_playout_count} playouts, {total_playout_count/search_total_elapsed:.0f} playouts/sec)")
+    log_print(f"Total search: {search_total_elapsed:.2f}s ({total_playout_count} playouts, {total_playout_count/search_total_elapsed:.0f} playouts/sec)")
 
     if USE_CPP:
         mcts_cpp.sync_cpp_to_python()
 
-    print(f"visited_nodes: {len(visited_nodes)}")
+    log_print(f"visited_nodes: {len(visited_nodes)}")
 
     # Step 1: メモリ上 (dl_data_tree / dl_cache) にあるノードを先に回収
     node_map = {}  # key -> node
@@ -882,3 +896,6 @@ if __name__ == "__main__":
     if args.boards:
         with open(args.boards, "w") as f:
             f.writelines(moves_list)
+
+    if LOG_FILE is not None:
+        LOG_FILE.close()
