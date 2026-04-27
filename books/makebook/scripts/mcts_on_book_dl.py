@@ -629,7 +629,7 @@ if __name__ == "__main__":
     args.add_argument('--boards', type=str)
     args.add_argument('--root_sfens', type=str, nargs='*', default=[])
     args.add_argument('--book_moves_threshold', type=int, default=4)
-    args.add_argument('--eval_diff', type=int, default=30)
+    args.add_argument('--eval_diff', type=int, default=40)
     args.add_argument('--first_board_sfen_output', type=str, default='first_board_sfens.txt')
     args.add_argument('--debug', action='store_true')
     args.add_argument('--debug-skip-is-draw', action='store_true')
