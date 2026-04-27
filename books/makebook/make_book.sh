@@ -127,5 +127,5 @@ for ((i=1; i<=$N; i++)); do
     python "$EVAL_SFENS_SCRIPT" "$MODEL" out_book/test_book.db eval_dl --batch_size 1024 --device cuda
 
     # mcts処理
-    python "$MCTS_SCRIPT" test_book_petashock.db eval_dl test.sfens --root_sfens root_sfens.txt csa_root.sfens --use-cpp
+    python "$MCTS_SCRIPT" test_book_petashock.db eval_dl test.sfens --root_sfens root_sfens.txt csa_root.sfens --use-cpp --eval_diff 50
 done
