@@ -3,6 +3,7 @@ import cshogi
 from cshogi import NOT_REPETITION, REPETITION_DRAW, REPETITION_WIN, REPETITION_SUPERIOR, BLACK, WHITE
 import faulthandler
 import functools
+import heapq
 import numpy as np
 import os
 import random
@@ -823,21 +824,45 @@ if __name__ == "__main__":
         mcts_cpp.sync_cpp_to_python()
 
     print(f"visited_nodes: {len(visited_nodes)}")
-    move_count_list = []
+
+    # Step 1: メモリ上 (dl_data_tree / dl_cache) にあるノードを先に回収
+    node_map = {}  # key -> node
+    remaining_keys = []
     for key in visited_nodes:
-        node = get_dl_node_by_key(key)
-        if node is None:
-            continue
-        move_count_list.append((node.move_count, key))
-    move_count_list.sort(reverse=True)
-    move_count_list = move_count_list[:min(len(move_count_list), 1000)]
+        if key in dl_data_tree:
+            node_map[key] = dl_data_tree[key]
+        else:
+            cached = _cache_get(key)
+            if cached is not None:
+                node_map[key] = cached
+            else:
+                remaining_keys.append(key)
+
+    # Step 2: 残りをシャードIDでグループ化してバッチロード
+    if remaining_keys:
+        shard_groups = {}
+        for key in remaining_keys:
+            location = _find_dl_location(key)
+            if location is None:
+                continue
+            sid, row = location
+            if sid not in shard_groups:
+                shard_groups[sid] = []
+            shard_groups[sid].append((key, row))
+
+        for sid in sorted(shard_groups.keys()):
+            shard = _open_shard(sid)
+            for key, row in shard_groups[sid]:
+                node = _load_node_from_location(sid, row)
+                _cache_put(key, node)
+                node_map[key] = node
+
+    # Step 3: heapq.nlargest で top-1000 を効率的に抽出
+    top_nodes = heapq.nlargest(1000, node_map.items(), key=lambda kv: kv[1].move_count)
 
     sfens_list = []
     moves_list = []
-    for _, key in move_count_list:
-        node = get_dl_node_by_key(key)
-        if node is None:
-            continue
+    for key, node in top_nodes:
         if not isinstance(node.board, cshogi.Board):
             node.board = cshogi.Board(sfen=node.board)
         sfens_list.append(f"sfen {node.board.sfen()}\n")
