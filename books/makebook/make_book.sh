@@ -89,20 +89,20 @@ for ((i=1; i<=$N; i++)); do
     cp "$SCRIPT_DIR/startup_think.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc
-    
+
     # merge_delta処理
     cp "$SCRIPT_DIR/startup_merge_delta.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
-    
+
     # petashock処理
     cp "$SCRIPT_DIR/startup_petashock.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
-    
+
     # multipv取得
     python "$GET_SEARCH_BOARD_SCRIPT" test_book_petashock.db first_board_sfens.txt test_multipv.sfens
-    
+
     # think_multipv処理
     cp "$SCRIPT_DIR/startup_think_multipv.txt" startup.txt
     setup_startup_file startup.txt
@@ -112,20 +112,20 @@ for ((i=1; i<=$N; i++)); do
     cp "$SCRIPT_DIR/startup_merge_multipv_delta.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
-    
+
     # merge処理
     cp "$SCRIPT_DIR/startup_merge.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
-    
+
     # petashock処理
     cp "$SCRIPT_DIR/startup_petashock.txt" startup.txt
     setup_startup_file startup.txt
     ./YaneuraOu-by-gcc-no-search
-    
+
     # eval処理
     python "$EVAL_SFENS_SCRIPT" "$MODEL" out_book/test_book.db eval_dl --batch_size 1024 --device cuda
-    
+
     # mcts処理
     python "$MCTS_SCRIPT" test_book_petashock.db eval_dl test.sfens --root_sfens root_sfens.txt csa_root.sfens --use-cpp
 done
