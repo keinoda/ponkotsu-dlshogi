@@ -540,7 +540,10 @@ def _load_node_from_location(shard_id, row_index):
 
     if bool(shard['has_children'][row_index]):
         start = int(shard['child_offsets'][row_index])
-        end = int(shard['child_offsets'][row_index + 1])
+        if row_index + 1 < len(shard['child_offsets']):
+            end = int(shard['child_offsets'][row_index + 1])
+        else:
+            end = len(shard['child_move_flat'])
         node.child_move = np.asarray(shard['child_move_flat'][start:end], dtype=np.int32).tolist()
         node.child_move_count = np.zeros(end - start, dtype=np.float32)
         node.child_score_sum = np.zeros(end - start, dtype=np.float32)
@@ -629,7 +632,7 @@ if __name__ == "__main__":
     args.add_argument('--boards', type=str)
     args.add_argument('--root_sfens', type=str, nargs='*', default=[])
     args.add_argument('--book_moves_threshold', type=int, default=4)
-    args.add_argument('--eval_diff', type=int, default=40)
+    args.add_argument('--eval_diff', type=int, default=30)
     args.add_argument('--first_board_sfen_output', type=str, default='first_board_sfens.txt')
     args.add_argument('--debug', action='store_true')
     args.add_argument('--debug-skip-is-draw', action='store_true')
@@ -814,7 +817,6 @@ if __name__ == "__main__":
             count += 1
         pbar.close()
         total_playout_count += playout_num
-        print(f"visited nodes: {len(visited_nodes)}")
 
     search_total_elapsed = time.time() - search_total_start
     print(f"Total search: {search_total_elapsed:.2f}s ({total_playout_count} playouts, {total_playout_count/search_total_elapsed:.0f} playouts/sec)")
