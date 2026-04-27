@@ -814,6 +814,7 @@ if __name__ == "__main__":
             count += 1
         pbar.close()
         total_playout_count += playout_num
+        print(f"visited nodes: {len(visited_nodes)}")
 
     search_total_elapsed = time.time() - search_total_start
     print(f"Total search: {search_total_elapsed:.2f}s ({total_playout_count} playouts, {total_playout_count/search_total_elapsed:.0f} playouts/sec)")
