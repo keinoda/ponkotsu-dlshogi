@@ -16,6 +16,23 @@ def norm(s):
     return ' '.join(s.strip().split(' ')[:3])
 
 
+def build_first_path_from_book(book_path):
+    first_path = book_path.parent / (book_path.stem + '.first_board_sfens.txt')
+    line_count = 0
+    with book_path.open() as src, first_path.open('w') as dst:
+        first = True
+        for raw in src:
+            if first:
+                first = False
+                continue
+            line = raw.strip()
+            if line.startswith('sfen '):
+                dst.write(line[5:] + '\n')
+                line_count += 1
+    print(f'generated_first_path={first_path} lines={line_count}')
+    return first_path
+
+
 def run_target_script(python_exe, script_path, book_path, first_path, out_path, threshold):
     out_path.parent.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -70,21 +87,22 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('book_path', type=Path)
-    parser.add_argument('first_path', type=Path)
     parser.add_argument('out_path', type=Path)
     args = parser.parse_args()
+
+    first_path = build_first_path_from_book(args.book_path)
 
     run_target_script(
         Path(sys.executable),
         script_path,
         args.book_path,
-        args.first_path,
+        first_path,
         args.out_path,
         BOOK_MOVES_THRESHOLD,
     )
 
     counts = build_counts(args.book_path)
-    expected = build_expected(args.first_path, counts, BOOK_MOVES_THRESHOLD)
+    expected = build_expected(first_path, counts, BOOK_MOVES_THRESHOLD)
 
     actual = [l.strip() for l in args.out_path.read_text().splitlines() if l.strip()]
     print(f'expected={len(expected)} actual={len(actual)}')
