@@ -1,27 +1,28 @@
 import argparse
 import cshogi
-import glob
-import os
-
-from cshogi import CSA
 
 class Node:
+    __slots__ = ("child_move", "child_score", "child_depth")
+
     def __init__(self):
-        self.board = None
         self.child_move = []
         self.child_score = []
         self.child_depth = []
+
+
+def normalize_sfen_key(sfen):
+    # Ignore move number to match zobrist-hash-style position identity.
+    return " ".join(sfen.split(" ")[:3])
 
 def rotate_board(board):
     return cshogi.Board(cshogi.rotate_sfen(board.sfen()))
 
 
-def build_rotated_node(node):
-    rotated_board = rotate_board(node.board)
+def build_rotated_node(board, node):
+    rotated_board = rotate_board(board)
     rotated_node = Node()
-    rotated_node.board = rotated_board.copy()
     rotated_node.child_move = [
-        cshogi.to_usi(cshogi.move_rotate(node.board.move_from_usi(move))).decode()
+        cshogi.to_usi(cshogi.move_rotate(rotated_board.move_from_usi(move))).decode()
         for move in node.child_move
     ]
     rotated_node.child_score = [-score for score in node.child_score]
@@ -30,39 +31,54 @@ def build_rotated_node(node):
 
 
 def get_book_node(book_tree, board):
-    board_key = board.zobrist_hash()
+    board_key = normalize_sfen_key(board.sfen())
     node = book_tree.get(board_key)
     if node is not None:
-        return board_key, node
+        return node
 
-    rotated_board = rotate_board(board)
-    rotated_key = rotated_board.zobrist_hash()
+    rotated_key = normalize_sfen_key(cshogi.rotate_sfen(board.sfen()))
     rotated_node = book_tree.get(rotated_key)
     if rotated_node is None:
-        return board_key, None
+        return None
 
-    node = build_rotated_node(rotated_node)
-    node.board = board.copy()
+    node = build_rotated_node(board, rotated_node)
     book_tree[board_key] = node
-    return board_key, node
+    return node
 
-def parse_book(book_path):
-    # parse book entry
+def parse_book(book_path, target_sfen_keys):
+    # Parse only target positions to avoid building a full in-memory tree.
+    book_tree = {}
+    current_node = None
+
     with open(book_path, "r") as f:
-        books = f.readlines()
-        books = [line.strip() for line in books[1:]]
+        first_line = True
+        for raw_line in f:
+            if first_line:
+                first_line = False
+                continue
 
-    book_tree = dict()
-    book_key = None
-    board = cshogi.Board()
-    for book in books:
-        if book.startswith("sfen"):
-            board.set_sfen(book[5:])
-            book_key = board.zobrist_hash()
-            book_tree[book_key] = Node()
-            book_tree[book_key].board = board.copy()
-        else:
-            next_move_info = book.strip().split(" ")
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if line.startswith("sfen "):
+                book_key = normalize_sfen_key(line[5:])
+                if book_key in target_sfen_keys:
+                    current_node = book_tree.get(book_key)
+                    if current_node is None:
+                        current_node = Node()
+                        book_tree[book_key] = current_node
+                else:
+                    current_node = None
+                continue
+
+            if current_node is None:
+                continue
+
+            next_move_info = line.split()
+            if len(next_move_info) < 4:
+                continue
+
             # 取るべき情報
             # 0: 指し手 (USI形式)
             # 2: スコア (int)
@@ -70,9 +86,10 @@ def parse_book(book_path):
             move_usi = next_move_info[0]
             score = int(next_move_info[2])
             depth = int(next_move_info[3])
-            book_tree[book_key].child_move.append(move_usi)
-            book_tree[book_key].child_score.append(score)
-            book_tree[book_key].child_depth.append(depth)
+            current_node.child_move.append(move_usi)
+            current_node.child_score.append(score)
+            current_node.child_depth.append(depth)
+
     return book_tree
 
 if __name__ == "__main__":
@@ -84,18 +101,23 @@ if __name__ == "__main__":
     args = args.parse_args()
     book_path = args.book_path
 
-    book_tree = parse_book(book_path)
-
     with open(args.first_board_sfen, "r") as f:
-        first_board_sfen_list = [line.strip() for line in f.readlines()]
+        first_board_sfen_list = [line.strip() for line in f if line.strip()]
+
+    target_sfen_keys = set()
+    for sfen in first_board_sfen_list:
+        target_sfen_keys.add(normalize_sfen_key(sfen))
+        target_sfen_keys.add(normalize_sfen_key(cshogi.rotate_sfen(sfen)))
+
+    book_tree = parse_book(book_path, target_sfen_keys)
 
 
     sfens_list = []
     for sfen in first_board_sfen_list:
         board = cshogi.Board(sfen=sfen)
-        _, node = get_book_node(book_tree, board)
+        node = get_book_node(book_tree, board)
         if node is not None and len(node.child_move) < args.book_moves_threshold:
-            sfens_list.append(f"sfen {sfen}\n")
+            sfens_list.append(f"sfen {sfen}")
 
     with open(args.sfens_path, "w") as f:
         f.write("\n".join(sfens_list))
