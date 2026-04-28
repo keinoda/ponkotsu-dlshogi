@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import random
 import subprocess
 import sys
 import time
@@ -17,10 +18,13 @@ def norm(s):
     return ' '.join(s.strip().split(' ')[:3])
 
 
-def build_first_path_from_book(book_path):
+def build_first_path_from_book(book_path, first_count, seed):
     first_path = book_path.parent / (book_path.stem + '.first_board_sfens.txt')
-    line_count = 0
-    with book_path.open() as src, first_path.open('w') as dst:
+    rng = random.Random(seed)
+    sampled_sfens = []
+    sfen_seen = 0
+
+    with book_path.open() as src:
         first = True
         for raw in src:
             if first:
@@ -28,9 +32,23 @@ def build_first_path_from_book(book_path):
                 continue
             line = raw.strip()
             if line.startswith('sfen '):
-                dst.write(line[5:] + '\n')
-                line_count += 1
-    print(f'generated_first_path={first_path} lines={line_count}')
+                sfen = line[5:]
+                sfen_seen += 1
+                if len(sampled_sfens) < first_count:
+                    sampled_sfens.append(sfen)
+                else:
+                    idx = rng.randint(0, sfen_seen - 1)
+                    if idx < first_count:
+                        sampled_sfens[idx] = sfen
+
+    with first_path.open('w') as dst:
+        if sampled_sfens:
+            dst.write('\n'.join(sampled_sfens) + '\n')
+
+    print(
+        f'generated_first_path={first_path} lines={len(sampled_sfens)} '
+        f'source_sfens={sfen_seen} first_count={first_count} seed={seed}'
+    )
     return first_path
 
 
@@ -97,9 +115,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('book_path', type=Path)
     parser.add_argument('out_path', type=Path)
+    parser.add_argument('--first-count', type=int, default=119)
+    parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
 
-    first_path = build_first_path_from_book(args.book_path)
+    first_path = build_first_path_from_book(args.book_path, args.first_count, args.seed)
 
     optimized_elapsed = run_target_script(
         Path(sys.executable),
