@@ -1,5 +1,5 @@
 setoption name EvalDir value @EVALDIR@
-setoption name USI_Hash value 28000
+setoption name USI_Hash value 32000
 setoption name BookDir value @BOOKDIR@
 setoption name Threads value @THREADS@
 setoption name FV_SCALE value 28
