@@ -1,7 +1,7 @@
 setoption name EvalDir value @EVALDIR@
 setoption name USI_Hash value 28000
 setoption name BookDir value @BOOKDIR@
-setoption name Threads value 28
+setoption name Threads value @THREADS@
 setoption name FV_SCALE value 28
 makebook think @BOOKDIR@/test.sfens @BOOKDIR@/out_book/test_book.db moves 320 nodes 150000000 depth 100
 quit

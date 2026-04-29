@@ -5,6 +5,8 @@ N=1
 EVALDIR=""
 BOOKDIR=""
 MODEL=""
+DEFAULT_THREADS="$(nproc)"
+THREADS="$DEFAULT_THREADS"
 
 # オプション解析
 while [[ $# -gt 0 ]]; do
@@ -25,13 +27,18 @@ while [[ $# -gt 0 ]]; do
             MODEL="$2"
             shift 2
             ;;
+        --threads)
+            THREADS="$2"
+            shift 2
+            ;;
         --help)
-            echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR --model PATH"
+            echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR --model PATH [--threads N]"
             echo "Options:"
             echo "  --iterations N      Number of iterations (default: 1)"
             echo "  --eval-dir DIR      Path to evaluation directory"
             echo "  --book-dir DIR      Path to book directory"
             echo "  --model PATH        Path to ONNX model file"
+            echo "  --threads N         Number of engine threads (default: $DEFAULT_THREADS)"
             echo "  --help              Show this help message"
             exit 0
             ;;
@@ -45,7 +52,12 @@ done
 # 引数チェック
 if [ -z "$EVALDIR" ] || [ -z "$BOOKDIR" ] || [ -z "$MODEL" ]; then
     echo "Error: Missing required arguments"
-    echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR --model PATH"
+    echo "Usage: $0 --iterations N --eval-dir DIR --book-dir DIR --model PATH [--threads N]"
+    exit 1
+fi
+
+if ! [[ "$THREADS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Error: --threads must be a positive integer"
     exit 1
 fi
 
@@ -81,6 +93,7 @@ setup_startup_file() {
     sed -i \
       -e "s|@EVALDIR@|$EVALDIR|g" \
       -e "s|@BOOKDIR@|$BOOKDIR|g" \
+      -e "s|@THREADS@|$THREADS|g" \
       "$template_file"
 }
 
