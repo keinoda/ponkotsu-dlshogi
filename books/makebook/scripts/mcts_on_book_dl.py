@@ -22,6 +22,7 @@ except ImportError:
 USE_CPP = False
 
 c_puct = 0.1
+c_fpu_reduction = 0.0
 
 def score_to_value(score, a=756.0864962951762):
     return 1.0 / (1.0 + np.exp(-score / a))
@@ -35,7 +36,14 @@ def softmax_temperature_with_normalization(logits, temperature):
     return probabilities
 
 def select_max_ucb_child(node):
-    q = np.divide(node.child_score_sum, node.child_move_count, out=np.zeros(len(node.child_move), np.float32), where=node.child_move_count != 0)
+    parent_q = node.sum_value / node.move_count if node.move_count > 0 else 0.0
+    fpu_value = parent_q - c_fpu_reduction
+    q = np.divide(
+        node.child_score_sum,
+        node.child_move_count,
+        out=np.full(len(node.child_move), fpu_value, dtype=np.float32),
+        where=node.child_move_count != 0,
+    )
     if node.move_count == 0:
         u = 1.0
     else:
@@ -646,10 +654,13 @@ if __name__ == "__main__":
     args.add_argument('--use-cshogi-is-draw', action='store_true')
     args.add_argument('--rotated-dl-share-stats', action='store_true')
     args.add_argument('--use-cpp', action='store_true')
+    args.add_argument('--fpu-reduction', type=float, default=0.17)
     args.add_argument('--dl-cache-size', type=int, default=50000)
     args.add_argument('--visited-nodes-limit', type=int, default=1000 * 10)
     args.add_argument('--log-file', type=str, default='mcts_search.log')
     args = args.parse_args()
+
+    c_fpu_reduction = args.fpu_reduction
 
     DL_CACHE_SIZE = args.dl_cache_size
 
@@ -661,6 +672,7 @@ if __name__ == "__main__":
     if args.use_cpp:
         if _HAS_CPP:
             USE_CPP = True
+            mcts_cpp.set_fpu_reduction(c_fpu_reduction)
         else:
             print("WARNING: --use-cpp specified but mcts_cpp not found. Falling back to pure Python.")
 

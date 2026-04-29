@@ -40,6 +40,11 @@ double &c_puct() {
     return value;
 }
 
+double &c_fpu_reduction() {
+    static double value = 0.0;
+    return value;
+}
+
 py::dict &dl_data_tree() {
     static auto *obj = new py::dict();
     return *obj;
@@ -274,6 +279,8 @@ int select_max_ucb_child_cpp_node(const CppNode &node) {
     }
 
     const double mc = static_cast<double>(node.move_count);
+    const double parent_q = (mc > 0.0) ? (node.sum_value / mc) : 0.0;
+    const double fpu_value = parent_q - c_fpu_reduction();
 
     int best_idx = 0;
     double best_ucb = -std::numeric_limits<double>::infinity();
@@ -284,7 +291,7 @@ int select_max_ucb_child_cpp_node(const CppNode &node) {
         const double css = node.child_score_sum[idx];
         const double cp = node.child_policy[idx];
 
-        const double q = (cmc != 0.0) ? (css / cmc) : 0.0;
+        const double q = (cmc != 0.0) ? (css / cmc) : fpu_value;
         const double u = (mc == 0.0) ? 1.0 : std::sqrt(mc / (1.0 + cmc));
         const double ucb = q + c_puct() * cp * u;
 
@@ -466,6 +473,11 @@ void init(py::dict dl_tree_obj,
     repetition_draw() = py::cast<int>(cshogi.attr("REPETITION_DRAW"));
     repetition_win() = py::cast<int>(cshogi.attr("REPETITION_WIN"));
     repetition_superior() = py::cast<int>(cshogi.attr("REPETITION_SUPERIOR"));
+}
+
+
+void set_fpu_reduction(double value) {
+    c_fpu_reduction() = value;
 }
 
 
@@ -694,6 +706,7 @@ PYBIND11_MODULE(mcts_cpp, m) {
     m.def("select_max_ucb_child_cpp", &select_max_ucb_child_cpp, "Select child with max UCB");
     m.def("sync_cpp_to_python", &sync_cpp_to_python, "Sync C++ node stats to Python nodes");
     m.def("get_depth0_count", &get_depth0_count, "Get depth0 count");
+    m.def("set_fpu_reduction", &set_fpu_reduction, py::arg("value"), "Set FPU reduction parameter");
 #ifdef USE_CSHOGI_NATIVE
     m.def("parse_book_cpp", &parse_book_cpp, py::arg("filepath"), py::arg("node_class"),
           "Parse book file using native C++ Position");
