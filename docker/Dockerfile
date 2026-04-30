@@ -9,7 +9,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     pkg-config \
     software-properties-common \
     curl fish \
-    build-essential libopenblas-dev \
+    build-essential libopenblas-dev libomp-20-dev \
     clang-20 lld-20 clangd-20 \
     libjemalloc-dev libjemalloc2  && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
 
 WORKDIR /root
 
-RUN mkdir book && mkdir models
+COPY . /root/ponkotsu_wcsc33
 
 RUN git clone https://github.com/yaneurao/YaneuraOu
 
