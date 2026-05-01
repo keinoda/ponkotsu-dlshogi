@@ -71,7 +71,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/ponkotsu:latest
+          tags: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/ponkotsu:cuda12.9
 
       - name: Retry build and push Docker Hub image (latest only)
         if: github.event_name == 'push' && steps.build_push_dockerhub_latest.outcome == 'failure'
@@ -80,7 +80,7 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
-          tags: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/ponkotsu:latest
+          tags: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/ponkotsu:cuda12.9
 
       - name: Build and push Docker development image
         id: build_push_develop
