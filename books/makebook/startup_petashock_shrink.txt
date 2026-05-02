@@ -1,0 +1,8 @@
+USI_Hash 0
+SkipLoadingEval true
+DrawValueBlack  0
+DrawValueWhite  0
+setoption name Threads value @THREADS@
+setoption name BookDir value @BOOKDIR@
+makebook peta_shock @BOOKDIR@/out_book/test_book.db @BOOKDIR@/test_book_petashock_shrink.db fast shrink
+quit
