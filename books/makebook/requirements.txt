@@ -1,6 +1,8 @@
 cshogi
+dlshogi
 numpy
 onnxruntime-gpu
+pandas
 tqdm
 pybind11
 requests
