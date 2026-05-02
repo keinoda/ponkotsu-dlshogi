@@ -9,4 +9,5 @@ if [ -z "$save_dir" ]; then
   exit 1
 fi
 
+python download_wcsc_kifu.py "$save_dir"
 python get_wcsc_kifu.py https://www.computer-shogi.org/live/wcsc36/lower.html https://www.computer-shogi.org/live/wcsc36/list.txt "$save_dir"
