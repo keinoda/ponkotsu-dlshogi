@@ -3,3 +3,5 @@ numpy
 onnxruntime-gpu
 tqdm
 pybind11
+requests
+bs4
