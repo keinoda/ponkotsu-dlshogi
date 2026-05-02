@@ -68,6 +68,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$SCRIPT_DIR/scripts"
 GET_SEARCH_BOARD_SCRIPT="$SCRIPTS_DIR/get_search_board_multipv.py"
 EVAL_SFENS_SCRIPT="$SCRIPTS_DIR/eval_sfens.py"
+GET_ROOT_SEARCH_BOARD_SCRIPT="$SCRIPTS_DIR/get_root_search_board_from_csa.py"
 MCTS_SCRIPT="$SCRIPTS_DIR/mcts_on_book_dl.py"
 
 # 元のディレクトリを保存
@@ -138,6 +139,9 @@ for ((i=1; i<=$N; i++)); do
 
     # eval処理
     python "$EVAL_SFENS_SCRIPT" "$MODEL" out_book/test_book.db eval_dl --batch_size 1024 --device cuda
+
+    # root_sfens取得
+    # python "$GET_ROOT_SEARCH_BOARD_SCRIPT" test_book_petashock.db csa csa_root.sfens
 
     # mcts処理
     python "$MCTS_SCRIPT" test_book_petashock.db eval_dl test.sfens --root_sfens root_sfens.txt csa_root.sfens --use-cpp --eval_diff 50
