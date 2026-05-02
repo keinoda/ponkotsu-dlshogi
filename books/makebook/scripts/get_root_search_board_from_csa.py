@@ -5,31 +5,39 @@ import os
 
 from cshogi import CSA
 
-try:
-    import mcts_cpp
-    HAS_MCTS_CPP = hasattr(mcts_cpp, "parse_book_cpp")
-except Exception:
-    mcts_cpp = None
-    HAS_MCTS_CPP = False
 
 class Node:
+    __slots__ = ("board", "child_move", "child_score", "child_depth")
+
     def __init__(self):
         self.board = None
         self.child_move = []
         self.child_score = []
         self.child_depth = []
 
-def rotate_board(board):
-    return cshogi.Board(cshogi.rotate_sfen(board.sfen()))
+
+def normalize_sfen_key(sfen):
+    return " ".join(sfen.split()[:3])
+
+
+def rotate_sfen_text(sfen):
+    rotated = cshogi.rotate_sfen(sfen)
+    if isinstance(rotated, bytes):
+        rotated = rotated.decode()
+    return rotated
 
 
 def build_rotated_node(node):
-    rotated_board = rotate_board(node.board)
     rotated_node = Node()
-    rotated_node.board = rotated_board.copy()
+    rotated_node.board = rotate_sfen_text(node.board)
+    source_board = cshogi.Board(sfen=node.board)
     rotated_node.child_move = [
-        cshogi.to_usi(cshogi.move_rotate(node.board.move_from_usi(move))).decode()
+        cshogi.to_usi(cshogi.move_rotate(source_board.move_from_usi(move)))
         for move in node.child_move
+    ]
+    rotated_node.child_move = [
+        move.decode() if isinstance(move, bytes) else move
+        for move in rotated_node.child_move
     ]
     rotated_node.child_score = [-score for score in node.child_score]
     rotated_node.child_depth = node.child_depth.copy()
@@ -37,63 +45,83 @@ def build_rotated_node(node):
 
 
 def get_book_node(book_tree, board):
-    board_key = board.zobrist_hash()
+    board_key = normalize_sfen_key(board.sfen())
     node = book_tree.get(board_key)
     if node is not None:
-        return board_key, node
+        return node
 
-    rotated_board = rotate_board(board)
-    rotated_key = rotated_board.zobrist_hash()
+    rotated_key = normalize_sfen_key(rotate_sfen_text(board.sfen()))
     rotated_node = book_tree.get(rotated_key)
     if rotated_node is None:
-        return board_key, None
+        return None
 
     node = build_rotated_node(rotated_node)
-    node.board = board.copy()
+    node.board = board.sfen()
     book_tree[board_key] = node
-    return board_key, node
+    return node
 
-def parse_book(book_path):
-    if HAS_MCTS_CPP:
-        book_tree, book_child_depth_tree = mcts_cpp.parse_book_cpp(book_path, Node)
-        for key, node in book_tree.items():
-            # parse_book_cpp returns board as sfen string in this code path.
-            if isinstance(node.board, str):
-                node.board = cshogi.Board(sfen=node.board)
 
-            # Normalize score/depth to the same shape/type as the Python parser.
-            node.child_score = [int(score) for score in node.child_score]
-            depths = book_child_depth_tree.get(key, [])
-            node.child_depth = [-1 if depth is None else int(depth) for depth in depths]
-        return book_tree
+def collect_target_keys(csa_path_list):
+    """Pass 1: Replay CSA games to collect all SFEN keys we need from the book."""
+    target_keys = set()
+    for csa_path in csa_path_list:
+        parser = CSA.Parser()
+        parser.parse_csa_file(csa_path)
+        board = cshogi.Board(sfen=parser.sfen)
+        key = normalize_sfen_key(board.sfen())
+        target_keys.add(key)
+        target_keys.add(normalize_sfen_key(rotate_sfen_text(board.sfen())))
+        for move in parser.moves:
+            board.push(move)
+            key = normalize_sfen_key(board.sfen())
+            target_keys.add(key)
+            target_keys.add(normalize_sfen_key(rotate_sfen_text(board.sfen())))
+    return target_keys
 
-    # parse book entry
+
+def parse_book(book_path, target_keys):
+    """Pass 2: Stream the book file, only building Nodes for positions in target_keys."""
+    book_tree = {}
+    current_node = None
+
     with open(book_path, "r") as f:
-        books = f.readlines()
-        books = [line.strip() for line in books[1:]]
+        first_line = True
+        for raw_line in f:
+            if first_line:
+                first_line = False
+                continue
 
-    book_tree = dict()
-    book_key = None
-    board = cshogi.Board()
-    for book in books:
-        if book.startswith("sfen"):
-            board.set_sfen(book[5:])
-            book_key = board.zobrist_hash()
-            book_tree[book_key] = Node()
-            book_tree[book_key].board = board.copy()
-        else:
-            next_move_info = book.strip().split(" ")
-            # 取るべき情報
-            # 0: 指し手 (USI形式)
-            # 2: スコア (int)
-            # 3: 深さ (int)
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if line.startswith("sfen "):
+                book_key = normalize_sfen_key(line[5:])
+                if book_key in target_keys:
+                    current_node = book_tree.get(book_key)
+                    if current_node is None:
+                        current_node = Node()
+                        current_node.board = line[5:].strip()
+                        book_tree[book_key] = current_node
+                else:
+                    current_node = None
+                continue
+
+            if current_node is None:
+                continue
+
+            next_move_info = line.split()
+            if len(next_move_info) < 4:
+                continue
             move_usi = next_move_info[0]
             score = int(next_move_info[2])
             depth = int(next_move_info[3])
-            book_tree[book_key].child_move.append(move_usi)
-            book_tree[book_key].child_score.append(score)
-            book_tree[book_key].child_depth.append(depth)
+            current_node.child_move.append(move_usi)
+            current_node.child_score.append(score)
+            current_node.child_depth.append(depth)
+
     return book_tree
+
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
@@ -105,26 +133,32 @@ if __name__ == "__main__":
     book_path = args.book_path
 
     csa_path_list = glob.glob(os.path.join(args.csa_dir, "*.csa"))
-    root_search_sfens = []
-    book_tree = parse_book(book_path)
 
+    # Pass 1: Collect target SFEN keys from CSA games.
+    target_keys = collect_target_keys(csa_path_list)
+    print(f"target keys: {len(target_keys)}")
+
+    # Pass 2: Parse only matching positions from the book.
+    book_tree = parse_book(book_path, target_keys)
+    print(f"matched book nodes: {len(book_tree)}")
+
+    # Pass 3: Replay CSA games and find root search positions.
+    root_search_sfens = []
     for csa_path in csa_path_list:
         parser = CSA.Parser()
         parser.parse_csa_file(csa_path)
-        moves_usi = [cshogi.move_to_usi(move) for move in parser.moves]
 
         board = cshogi.Board(sfen=parser.sfen)
-        board_key, node = get_book_node(book_tree, board)
+        node = get_book_node(book_tree, board)
         if node is None:
             continue
 
         score_now = node.child_score[0]
         depth_now = node.child_depth[0]
-        move_now = node.child_move[0]
 
         for move in parser.moves:
             board.push(move)
-            board_key, node = get_book_node(book_tree, board)
+            node = get_book_node(book_tree, board)
             score_now *= -1
             depth_now -= 1
             if node is not None:
