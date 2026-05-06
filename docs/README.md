@@ -6,7 +6,7 @@
 
 ## lossの推移
 
-![training_loss](plots/training_loss.png)
+<img src="plots/training_loss.png" width="600">
 
 348エポック全体を通じたloss(損失)の推移である。
 
@@ -28,7 +28,7 @@
 
 ## accuracyの推移
 
-![training_accuracy](plots/training_accuracy.png)
+<img src="plots/training_accuracy.png" width="600">
 
 評価用データセット(floodgate_test_2017-2018_r3500_eval5000.hcpe)上でのaccuracy(正解率)の推移である。
 
@@ -53,7 +53,7 @@
 
 ## Optunaによるパラメータ探索結果
 
-![optuna_overview](plots/optuna_overview.png)
+<img src="plots/optuna_overview.png" width="600">
 
 Optunaによるパラメータ探索の結果を示す2次元散布図行列(pairplot)である。複数のパラメータの組合せと、それぞれに対応する勝率の関係が可視化されている。
 
@@ -64,7 +64,7 @@ Optunaによるパラメータ探索の結果を示す2次元散布図行列(pai
 
 ## SPSAによる微調整(検証の結果、不採用)
 
-![spsa_progress](plots/spsa_progress.png)
+<img src="plots/spsa_progress.png" width="600">
 
 Optunaによる探索で見つかった領域をSPSA(Simultaneous Perturbation Stochastic Approximation)でさらに微調整した際の進行を示す。
 
