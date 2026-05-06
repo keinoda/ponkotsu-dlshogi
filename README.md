@@ -87,7 +87,13 @@ bash train_cosine_annealing.sh <save_dir> <run_name> <data_dir> <test_dir> <cach
 
 どちらも内部で `python -m dlshogi.train` を呼び出し、エポックごとにログ更新と可視化を行います。
 
-### 2. 学習ログを可視化する
+### 2. SWA 再開時の動作を検証する
+
+```bash
+python verify_swa_resume.py --resume <checkpoint_path> --network resnet35x512_fcl512 --gpu 0 --apply_swa_device_fix
+```
+
+### 3. 学習ログを可視化する
 
 ```bash
 python log_plot.py <比較元ログ> <対象ログ>
@@ -95,7 +101,7 @@ python log_plot.py <比較元ログ> <対象ログ>
 
 実行後、リポジトリルートに loss / accuracy の画像が生成されます。
 
-### 3. パラメータを調整する
+### 4. パラメータを調整する
 
 ```bash
 bash utils/param_optimize.sh
@@ -103,12 +109,6 @@ bash utils/param_optimize_spsa.sh
 ```
 
 これらのスクリプトは、対局実行環境やモデル配置場所に強く依存します。実運用前に保存先パスやモデルパスを書き換えて使う前提です。
-
-### 4. SWA 再開まわりを検証する
-
-```bash
-python verify_swa_resume.py --resume <checkpoint_path> --network resnet35x512_fcl512 --gpu 0 --apply_swa_device_fix
-```
 
 ## 詳細アピール文書補足資料
 
