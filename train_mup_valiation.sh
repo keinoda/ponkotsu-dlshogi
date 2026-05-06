@@ -1,2 +1,0 @@
-bash train_experiment.sh /volume resnet10x154_mup /volume/ShogiAIBookData/ /volume/train_cache/ 144 policy_value_network_ponkotsu.PolicyValueNetwork
-bash train_experiment.sh /volume resnet10x154_pre_ln_mup /volume/ShogiAIBookData/ /volume/train_cache/ 144 policy_value_network_pre_ln.PolicyValueNetwork
