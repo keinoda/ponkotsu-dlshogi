@@ -498,6 +498,13 @@ def rotate(board):
     return cshogi.Board(cshogi.rotate_sfen(board.sfen()))
 
 
+def canonical_position_key(board):
+    if not isinstance(board, cshogi.Board):
+        board = cshogi.Board(sfen=board)
+    rotated_board = rotate(board)
+    return min(int(board.zobrist_hash()), int(rotated_board.zobrist_hash()))
+
+
 def list_npz_files(path):
     if not os.path.isdir(path):
         raise NotADirectoryError(f"Expected directory path for dl_dir: {path}")
@@ -884,13 +891,20 @@ if __name__ == "__main__":
                 node_map[key] = node
 
     # Step 3: heapq.nlargest で top-1000 を効率的に抽出
-    top_nodes = heapq.nlargest(1000, node_map.items(), key=lambda kv: kv[1].move_count)
+    top_nodes = heapq.nlargest(1300, node_map.items(), key=lambda kv: kv[1].move_count)
 
     sfens_list = []
     moves_list = []
+    seen_position_keys = set()
     for key, node in top_nodes:
         if not isinstance(node.board, cshogi.Board):
             node.board = cshogi.Board(sfen=node.board)
+
+        position_key = canonical_position_key(node.board)
+        if position_key in seen_position_keys:
+            continue
+        seen_position_keys.add(position_key)
+
         sfens_list.append(f"sfen {node.board.sfen()}\n")
         if args.boards:
             board = node.board.copy()
@@ -898,7 +912,21 @@ if __name__ == "__main__":
             current_sfen = board.sfen()
             moves_list.append(f"{current_sfen}, {history}\n")
 
-    sfens_list += bestmove_board_sfen_list
+    for bestmove_sfen in bestmove_board_sfen_list:
+        sfen_line = bestmove_sfen.strip()
+        if sfen_line.startswith("sfen "):
+            sfen_body = sfen_line[5:]
+        else:
+            sfen_body = sfen_line
+
+        bestmove_board = cshogi.Board(sfen=sfen_body)
+        position_key = canonical_position_key(bestmove_board)
+        if position_key in seen_position_keys:
+            continue
+
+        seen_position_keys.add(position_key)
+        sfens_list.append(f"sfen {bestmove_board.sfen()}\n")
+
     with open(args.sfens, "w") as f:
         f.writelines(sfens_list)
 
