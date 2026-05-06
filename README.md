@@ -134,4 +134,4 @@ bash utils/param_optimize_spsa.sh
 ## 補足
 
 - `requirements.txt` は最小限です。実際には `dlshogi` 側の依存と CUDA 環境が前提になります。
-- `systemd/README.md` には定期実行のセットアップ手順があります。
+- `systemd/README.md` には SPSA ログの定期通知のセットアップ手順があります。
