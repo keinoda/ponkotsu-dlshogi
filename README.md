@@ -66,9 +66,7 @@ pip install -r requirements.txt
 
 - `verify_swa_resume.py`  
   SWA 再開時の `update_bn` 経路や device mismatch を検証するためのスクリプトです。
-- `books/makebook/get_wcsc_csa.sh`  
-  WCSC 棋譜の取得処理をまとめて実行するスクリプトです。
-- `books/makebook/download_wcsc_csa.py`  
+- `books/makebook/scripts/download_wcsc_csa.py`  
   WCSC の棋譜リストから CSA 棋譜を一括ダウンロードするスクリプトです。
 - `systemd/README.md`  
   SPSA ログの定期通知設定手順です。
