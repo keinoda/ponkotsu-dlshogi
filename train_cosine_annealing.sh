@@ -11,6 +11,8 @@ data_dir=$3
 test_dir=$4
 cache_dir=$5
 compare_log_dir=$6
+misskey_base_url=${7%/}
+misskey_access_token_file=$8
 
 # 最新のチェックポイント+1から学習を再開する
 for i in $(ls -v ${checkpoint_dir}/checkpoint_${name}-???.pth 2>/dev/null); do chkp=$i;
@@ -71,20 +73,20 @@ for ((i=$start; i<=$last; i++)); do
     python log_plot.py ${compare_log_dir}/train_log.txt ${log_dir}/train_log.txt
 
     # プロット結果をアップロード
-    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+    response=$(curl -s ${misskey_base_url}/api/drive/files/create \
         --request POST \
         --header 'Content-Type: multipart/form-data' \
-        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --header "Authorization: Bearer $(cat ${misskey_access_token_file})" \
         --form 'isSensitive=false' \
         --form 'force=false' \
         -F "file=@./loss_per_epoch.png")
 
     id_loss_per_epoch=$(echo $response | jq -r '.id')
 
-    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+    response=$(curl -s ${misskey_base_url}/api/drive/files/create \
         --request POST \
         --header 'Content-Type: multipart/form-data' \
-        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --header "Authorization: Bearer $(cat ${misskey_access_token_file})" \
         --form 'isSensitive=false' \
         --form 'force=false' \
         -F "file=@./accuracy_per_epoch.png")
@@ -93,10 +95,10 @@ for ((i=$start; i<=$last; i++)); do
 
     # 学習結果をノート
     text="$name\n"$(cat ${log_dir}/train_log.txt | grep "epoch = $i,"| tail -n 1 | cut -f 3)
-    curl -s -o /dev/null https://jiskey.dev/api/notes/create \
+    curl -s -o /dev/null ${misskey_base_url}/api/notes/create \
         --request POST \
         --header 'Content-Type: application/json' \
-        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --header "Authorization: Bearer $(cat ${misskey_access_token_file})" \
         --data '{
             "localOnly": true,
             "visibility": "specified",

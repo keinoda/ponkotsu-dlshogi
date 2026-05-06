@@ -14,6 +14,8 @@ data_dir=$3
 test_dir=$4
 cache_dir=$5
 compare_log_dir=$6
+misskey_base_url=${7%/}
+misskey_access_token_file=$8
 
 if [ ! -d ${model_dir} ]; then
     mkdir -p ${model_dir}
@@ -52,10 +54,6 @@ for ((i=$start; i<=$last; i++)); do
     echo epoch ${i} start
 
     # 学習
-    # python -m dlshogi.train ${src} ${test_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
-    #  ${resume} --checkpoint ${checkpoint} --network policy_value_network_pre_ln.PolicyValueNetwork --model ${model} -e 1\
-    # --optimizer mup.MuSGD'('momentum=0.9,nesterov=True')' --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2\
-    # --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch --cache ${cache_dir}/train_cache_prior_${iii} --log ${log_dir}/train_log.txt
     python -m dlshogi.train ${src} ${test_dir}/floodgate_test_2017-2018_r3500_eval5000.hcpe\
      ${resume} --checkpoint ${checkpoint} --network resnet35x512_fcl512 --model ${model} -e 1\
     --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2\
@@ -65,20 +63,20 @@ for ((i=$start; i<=$last; i++)); do
     python log_plot.py ${compare_log_dir}/train_log.txt ${log_dir}/train_log.txt
 
     # プロット結果をアップロード
-    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+    response=$(curl -s ${misskey_base_url}/api/drive/files/create \
         --request POST \
         --header 'Content-Type: multipart/form-data' \
-        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --header "Authorization: Bearer $(cat ${misskey_access_token_file})" \
         --form 'isSensitive=false' \
         --form 'force=false' \
         -F "file=@./loss_per_epoch.png")
 
     id_loss_per_epoch=$(echo $response | jq -r '.id')
 
-    response=$(curl -s https://jiskey.dev/api/drive/files/create \
+    response=$(curl -s ${misskey_base_url}/api/drive/files/create \
         --request POST \
         --header 'Content-Type: multipart/form-data' \
-        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --header "Authorization: Bearer $(cat ${misskey_access_token_file})" \
         --form 'isSensitive=false' \
         --form 'force=false' \
         -F "file=@./accuracy_per_epoch.png")
@@ -87,10 +85,10 @@ for ((i=$start; i<=$last; i++)); do
 
     # 学習結果をノート
     text="$name\n"$(cat ${log_dir}/train_log.txt | grep "epoch = $i,"| tail -n 1 | cut -f 3)
-    curl -s -o /dev/null https://jiskey.dev/api/notes/create \
+    curl -s -o /dev/null ${misskey_base_url}/api/notes/create \
         --request POST \
         --header 'Content-Type: application/json' \
-        --header "Authorization: Bearer $(cat ../jiskey_access_token)" \
+        --header "Authorization: Bearer $(cat ${misskey_access_token_file})" \
         --data '{
             "localOnly": true,
             "visibility": "specified",
