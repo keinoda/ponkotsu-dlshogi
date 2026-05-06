@@ -1,68 +1,35 @@
 import os
-import requests
-from bs4 import BeautifulSoup
 import argparse
 from cshogi import CSA
 
 def parse_arguments():
     """コマンドライン引数をパース"""
-    parser = argparse.ArgumentParser(description="WCSC棋譜リンクを抽出して保存するスクリプト")
-    parser.add_argument("html_file", help="上位ソフトの順位が記載されたHTMLファイルのURLまたはローカルパス")
+    parser = argparse.ArgumentParser(description="WCSC棋譜をフィルタリングするスクリプト")
+    parser.add_argument("software_list_file", help="フィルタリング対象のソフト一覧を記載したテキストファイル (1行1ソフト)")
     parser.add_argument("csa_dir", help="CSAファイルが格納されているディレクトリ")
-    parser.add_argument(
-        "--top-n",
-        "-n",
-        type=int,
-        default=10,
-        help="抽出対象の上位ソフト数 (デフォルト: 10)",
-    )
     args = parser.parse_args()
-    if args.top_n <= 0:
-        parser.error("--top-n は 1 以上を指定してください")
     return args
 
-def fetch_and_save_html(url, save_path="temp_html.html"):
-    """HTMLをダウンロードして一時ファイルに保存"""
-    response = requests.get(url)
-    response.encoding = "utf-8"  # UTF-8としてエンコーディングを設定
-    with open(save_path, 'wb') as f:
-        f.write(response.content)
-    return save_path
-
-def extract_top_software(html_file, top_n=10):
-    """HTMLファイルから上位Nソフトを抽出"""
-    # URLの場合は一度ダウンロードして保存
-    temp_file = None
-    if html_file.startswith("http://") or html_file.startswith("https://"):
-        temp_file = fetch_and_save_html(html_file)
-        html_file = temp_file
+def load_software_list(file_path):
+    """テキストファイルからソフト一覧を読み込む"""
+    # ファイルパスが相対パスの場合は絶対パスに変換
+    if not os.path.isabs(file_path):
+        file_path = os.path.abspath(file_path)
     
-    # 直接ファイルを開いてBeautifulSoupで解析
-    with open(html_file, 'rb') as f:
-        # UTF-8として解析 (標準パーサーを使用)
-        soup = BeautifulSoup(f, "html.parser")
+    software_list = []
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                software_name = line.strip()
+                if software_name and not software_name.startswith('#'):  # 空行とコメント行をスキップ
+                    software_list.append(software_name)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"ファイルが見つかりません: {file_path}")
     
-    # 一時ファイルを削除
-    if temp_file and os.path.exists(temp_file):
-        os.remove(temp_file)
+    if not software_list:
+        raise ValueError(f"ソフト一覧が空です: {file_path}")
     
-    rows = soup.find_all("tr")[1:]  # ヘッダーを除外
-    
-    software_data = []
-    for row in rows:
-        cells = row.find_all("td")
-        if len(cells) > 1:  # 空行をスキップ
-            name_cell = cells[1]  # ソフト名が2列目
-            rank_cell = cells[-1]  # 順位が最終列
-            software_name = name_cell.get_text(strip=True)
-            try:
-                rank = int(rank_cell.get_text(strip=True))
-                software_data.append((rank, software_name))
-            except ValueError:
-                continue
-    
-    software_data.sort(key=lambda x: x[0])
-    return [name for _, name in software_data[:top_n]]
+    return software_list
 
 def filter_csa_files(csa_dir, top_software):
     """指定されたディレクトリ内のCSAファイルをフィルタリング"""
@@ -99,9 +66,16 @@ def filter_csa_files(csa_dir, top_software):
 
 if __name__ == "__main__":
     args = parse_arguments()
-    top_software = extract_top_software(args.html_file, args.top_n)
-    print(f"上位{args.top_n}ソフト: {top_software}")
+    print(f"読み込みファイル: {args.software_list_file}")
+    print(f"CSAディレクトリ: {args.csa_dir}")
     
-    # CSAファイルのフィルタリングを実行
-    print(f"\nCSAファイルのフィルタリングを開始します...")
-    filter_csa_files(args.csa_dir, top_software)
+    try:
+        software_list = load_software_list(args.software_list_file)
+        print(f"フィルタリング対象ソフト ({len(software_list)}個): {software_list}")
+        
+        # CSAファイルのフィルタリングを実行
+        print(f"\nCSAファイルのフィルタリングを開始します...")
+        filter_csa_files(args.csa_dir, software_list)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"エラー: {e}")
+        exit(1)
