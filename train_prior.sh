@@ -16,6 +16,7 @@ cache_dir=$5
 compare_log_dir=$6
 misskey_base_url=${7%/}
 misskey_access_token_file=$8
+misskey_visible_user_id=$9
 
 if [ ! -d ${model_dir} ]; then
     mkdir -p ${model_dir}
@@ -92,7 +93,7 @@ for ((i=$start; i<=$last; i++)); do
         --data '{
             "localOnly": true,
             "visibility": "specified",
-            "visibleUserIds": ["9gptzj80qf"],
+            "visibleUserIds": ["'"$misskey_visible_user_id"'"],
             "text": "'"$text"'",
             "fileIds": ["'"$id_loss_per_epoch"'", "'"$id_accuracy_per_epoch"'"]
         }'

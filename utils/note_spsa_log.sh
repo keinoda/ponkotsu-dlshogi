@@ -1,20 +1,22 @@
 #!/bin/bash
 # SPSAログをプロットしてMisskeyにノートするスクリプト
-# Usage: bash utils/note_spsa_log.sh <access_token_path>
+# Usage: bash utils/note_spsa_log.sh <access_token_path> <misskey_base_url> <visible_user_id>
 
 set -euo pipefail
 
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <access_token_path>"
+if [ $# -lt 3 ]; then
+    echo "Usage: $0 <access_token_path> <misskey_base_url> <visible_user_id>"
     exit 1
 fi
 
 ACCESS_TOKEN_PATH="$1"
+MISSKEY_BASE_URL="${2%/}"
+VISIBLE_USER_ID="$3"
 LOG_FILE="/mnt/container/param_optimize/log_spsa_total.txt"
 OUT_DIR="/tmp/spsa_plot"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-PYTHON="/home/jj1guj/ponkotsu_wcsc33/.venv/bin/python"
+PYTHON="/path/to/ponkotsu_wcsc33/.venv/bin/python"
 
 mkdir -p "$OUT_DIR"
 cd "$REPO_DIR"
@@ -34,7 +36,7 @@ for img in "$PLOT_MAIN" "$PLOT_PARAMS" "$PLOT_SCATTER"; do
         echo "Warning: $img not found, skipping"
         continue
     fi
-    response=$(curl -sS https://jiskey.dev/api/drive/files/create \
+    response=$(curl -sS "${MISSKEY_BASE_URL}/api/drive/files/create" \
         --request POST \
         --header 'Content-Type: multipart/form-data' \
         --header "Authorization: Bearer $(cat "$ACCESS_TOKEN_PATH")" \
@@ -60,15 +62,16 @@ file_ids_json=$(printf '%s\n' "${file_ids[@]}" | jq -R . | jq -s .)
 json_body=$(jq -n \
     --arg text "$text" \
     --argjson fileIds "$file_ids_json" \
+    --arg visibleUserId "$VISIBLE_USER_ID" \
     '{
         localOnly: true,
         visibility: "specified",
-        visibleUserIds: ["9gptzj80qf"],
+        visibleUserIds: [$visibleUserId],
         text: $text,
         fileIds: $fileIds
     }')
 
-response=$(curl -sS https://jiskey.dev/api/notes/create \
+response=$(curl -sS "${MISSKEY_BASE_URL}/api/notes/create" \
     --request POST \
     --header 'Content-Type: application/json' \
     --header "Authorization: Bearer $(cat "$ACCESS_TOKEN_PATH")" \

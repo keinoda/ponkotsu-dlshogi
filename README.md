@@ -79,9 +79,9 @@ pip install -r requirements.txt
 このリポジトリの学習スクリプトは、保存先・実験名・データディレクトリなどを引数で受け取る前提です。
 
 ```bash
-bash train_prior.sh <save_dir> <run_name> <data_dir> <test_dir> <cache_dir> <compare_log_dir> <misskey_base_url> <token_file>
+bash train_prior.sh <save_dir> <run_name> <data_dir> <test_dir> <cache_dir> <compare_log_dir> <misskey_base_url> <token_file> <visible_user_id>
 
-bash train_cosine_annealing.sh <save_dir> <run_name> <data_dir> <test_dir> <cache_dir> <compare_log_dir> <misskey_base_url> <token_file>
+bash train_cosine_annealing.sh <save_dir> <run_name> <data_dir> <test_dir> <cache_dir> <compare_log_dir> <misskey_base_url> <token_file> <visible_user_id>
 ```
 
 どちらも内部で `python -m dlshogi.train` を呼び出し、エポックごとにログ更新と可視化を行います。

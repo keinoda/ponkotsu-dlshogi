@@ -5,8 +5,8 @@
 ```bash
 # ユーザーunitディレクトリにシンボリックリンクを作成
 mkdir -p ~/.config/systemd/user/
-ln -s /home/jj1guj/ponkotsu_wcsc33/systemd/note-spsa-log.service ~/.config/systemd/user/
-ln -s /home/jj1guj/ponkotsu_wcsc33/systemd/note-spsa-log.timer ~/.config/systemd/user/
+ln -s /path/to/ponkotsu_wcsc33/systemd/note-spsa-log.service ~/.config/systemd/user/
+ln -s /path/to/ponkotsu_wcsc33/systemd/note-spsa-log.timer ~/.config/systemd/user/
 
 # リロード・有効化・起動
 systemctl --user daemon-reload
