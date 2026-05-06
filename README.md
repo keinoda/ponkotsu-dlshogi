@@ -15,6 +15,7 @@ WCSC 向けの運用で使ったスクリプト群を中心に、学習ログ可
 | 強さ検証 | `utils/measure_strength.sh` |
 | 棋譜処理 | `books/makebook/` |
 | 補助検証 | `verify_swa_resume.py` などの検証スクリプト |
+| 詳細アピール文書補足資料 | `docs/appeal_supplement.md`|
 | 定期実行 | `systemd/` 配下の user service / timer 設定 |
 
 ## 前提
@@ -109,12 +110,19 @@ bash utils/param_optimize_spsa.sh
 python verify_swa_resume.py --resume <checkpoint_path> --network resnet35x512_fcl512 --gpu 0 --apply_swa_device_fix
 ```
 
+## 詳細アピール文書補足資料
+
+詳細アピール文書の補足資料として [docs/appeal_supplement.md](docs/appeal_supplement.md) を配置しています。紙面の都合上掲載できなかったグラフ・対局検証データをまとめています。
+
 ## ディレクトリ構成
 
 ```text
 .
 ├── books/                 # 棋譜取得・定跡化補助
 ├── docker/                # 開発・実行コンテナ定義
+├── docs/                  # 詳細アピール文書補足資料
+│   ├── appeal_supplement.md  # 補足資料本体
+│   └── plots/             # 補足資料用プロット画像
 ├── systemd/               # 定期通知設定
 ├── utils/                 # 補助スクリプト群
 ├── log_plot.py            # 学習ログ可視化

@@ -10,5 +10,8 @@
 *.log
 *.so
 *.o
+!docs/
+!docs/plots/
+!docs/plots/*.png
 !books/makebook/startup*.txt
 !*requirements.txt
