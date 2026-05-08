@@ -110,7 +110,7 @@ bash utils/param_optimize_spsa.sh
 
 ## 詳細アピール文書補足資料
 
-詳細アピール文書の補足資料として [docs/README.md](docs/README.md) を配置しています。紙面の都合上掲載できなかったグラフ・対局検証データをまとめています。
+[詳細アピール文書](https://www.apply.computer-shogi.org/wcsc36/appeal/ponkotsu/ponkotsu_WCSC36_detail.pdf)の補足資料として [docs/README.md](docs/README.md) を配置しています。紙面の都合上掲載できなかったグラフ・対局検証データをまとめています。
 
 ## ディレクトリ構成
 
