@@ -1,4 +1,5 @@
-dlshogi
+# dlshogi は PyPI 版 (0.0.1 スタブ) ではなく取り込み済みソースを使う (リポジトリルートから実行すること)
+./external/dlshogi
 cshogi
 scipy
 numpy
