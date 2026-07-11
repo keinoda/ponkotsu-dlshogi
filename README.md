@@ -16,12 +16,14 @@ ponkotsu の学習・検証・パラメータ調整・定跡生成をまとめ�
 | 補助検証 | `verify_swa_resume.py` などの検証スクリプト |
 | 詳細アピール文書補足資料 | `docs/README.md`|
 | 定期実行 | `systemd/` 配下の user service / timer 設定 |
+| dlshogi 本体(取り込み済み) | `external/dlshogi`(jj1guj/wcsc35 + 本家 master マージ。詳細は `external/README.md`) |
+| vast.ai での実行 | `docs/vastai.md`(手順書)、`docker/Dockerfile.vastai`(専用イメージ) |
 
 ## 前提
 
-このリポジトリ単体では完結しません。利用にあたっては以下を確認してください。
+利用にあたっては以下を確認してください。
 
-- `dlshogi` が import / 実行可能であること
+- `dlshogi` が import / 実行可能であること(本体ソースは `external/dlshogi` に取り込み済み。`pip install ./external/dlshogi` でインストール可能)
 - 学習データ一式 `.hcpe` や評価用データが別途配置されていること
 - GPU を使う場合は PyTorch と CUDA 環境が整っていること
 - 一部スクリプトでは `curl`, `jq`, `systemd --user` などの外部コマンドが必要なこと
@@ -117,10 +119,13 @@ bash utils/param_optimize_spsa.sh
 ```text
 .
 ├── books/                 # 棋譜取得・定跡化補助
-├── docker/                # 開発・実行コンテナ定義
+├── docker/                # 開発・実行コンテナ定義 (Dockerfile.vastai は vast.ai 用)
 ├── docs/                  # 詳細アピール文書補足資料
 │   ├── README.md             # 補足資料本体
+│   ├── vastai.md             # vast.ai 手順書
 │   └── plots/             # 補足資料用プロット画像
+├── external/              # 取り込み済み外部ソース
+│   └── dlshogi/              # dlshogi 本体 (jj1guj/wcsc35 + 本家 master マージ済み)
 ├── systemd/               # 定期通知設定
 ├── utils/                 # 補助スクリプト群
 ├── log_plot.py            # 学習ログ可視化
