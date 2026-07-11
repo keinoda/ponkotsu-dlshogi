@@ -1,0 +1,81 @@
+name: Build and Publish vast.ai Docker Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - claude/shogi-dl-vast-ai-setup-9mwh3n
+      - wcsc36
+    paths:
+      - 'docker/Dockerfile.vastai'
+      - 'external/**'
+      - '.github/workflows/docker-vastai.yml'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      # GitHub ホストランナーはディスクが狭いので不要物を削除 (~25GB 確保)
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+          df -h /
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push vast.ai image
+        id: build_push_vastai
+        uses: docker/build-push-action@v7
+        continue-on-error: true
+        with:
+          context: .
+          file: ./docker/Dockerfile.vastai
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ponkotsu:vastai
+            ghcr.io/${{ github.repository_owner }}/ponkotsu:vastai-${{ github.sha }}
+
+      - name: Retry build and push vast.ai image
+        if: steps.build_push_vastai.outcome == 'failure'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./docker/Dockerfile.vastai
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ponkotsu:vastai
+            ghcr.io/${{ github.repository_owner }}/ponkotsu:vastai-${{ github.sha }}
+
+      # Docker Hub の認証情報が設定されている場合のみ push (vast.ai からの pull が最も簡単)
+      - name: Log in to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push vast.ai image to Docker Hub
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./docker/Dockerfile.vastai
+          push: true
+          tags: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/ponkotsu:vastai

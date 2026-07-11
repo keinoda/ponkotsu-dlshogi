@@ -1,0 +1,75 @@
+# vast.ai 用オールインワンイメージ
+# - 学習 (python -m dlshogi.train / dlshogi.ptl) と USI エンジンビルドの両方に対応
+# - ベースは CUDA 12.9 / TensorRT 10 (minor version compatibility により driver >= 525 のホストで動作)
+# - external/dlshogi (jj1guj/wcsc35 + 本家 master マージ済み) をインストール・ビルドする
+#
+# ビルド:   docker build -f docker/Dockerfile.vastai -t ghcr.io/keinoda/ponkotsu:vastai .
+# 検証のみ: docker build -f docker/Dockerfile.vastai --target engine-test .
+FROM nvcr.io/nvidia/tensorrt:25.06-py3 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN ln -s -f /bin/true /usr/bin/chfn
+RUN echo "resolvconf resolvconf/linkify-resolvconf boolean false" | debconf-set-selections
+
+# openssh-server / rsync は vast.ai の SSH 接続・データ転送用
+RUN apt-get update && apt-get install -y \
+    openssh-server \
+    git \
+    curl \
+    wget \
+    rsync \
+    jq \
+    tmux \
+    fish \
+    htop \
+    pkg-config \
+    build-essential libopenblas-dev libboost-all-dev \
+    zlib1g-dev \
+    pbzip2 pv bzip2 unzip \
+    python3-dev \
+    libjemalloc-dev libjemalloc2 && \
+    ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# --- USI エンジンのコンパイル検証専用ステージ (PyTorch 不要なので軽い) ---
+# docker build --target engine-test で external/dlshogi の C++/Cython がビルドできることだけを確認できる
+FROM base AS engine-test
+COPY . /opt/ponkotsu-dlshogi
+RUN cd /opt/ponkotsu-dlshogi/external/dlshogi/usi && make -j"$(nproc)"
+RUN pip3 install --no-cache-dir cython numpy && \
+    cd /opt/ponkotsu-dlshogi/external/dlshogi && pip3 install --no-cache-dir -v .
+
+# --- 本番イメージ ---
+FROM base AS runtime
+
+# PyTorch (stable / CUDA 12.8 ビルド) と学習・調整・可視化に必要なパッケージ
+# 注意: requirements.txt の `dlshogi` は PyPI 版なのでここでは使わない (vendored 版を下で入れる)
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu128 && \
+    pip3 install --no-cache-dir \
+        cython \
+        numpy \
+        scipy \
+        matplotlib \
+        japanize-matplotlib \
+        cshogi \
+        onnx \
+        optuna \
+        lightning \
+        tensorboard \
+        jupyterlab
+
+# リポジトリ一式 (.git 込み: インスタンス内で git pull / push できる)
+COPY . /opt/ponkotsu-dlshogi
+
+# vendored dlshogi をインストールし、USI エンジンをビルド
+COPY --from=engine-test /opt/ponkotsu-dlshogi/external/dlshogi/usi/bin /opt/ponkotsu-dlshogi/external/dlshogi/usi/bin
+RUN cd /opt/ponkotsu-dlshogi/external/dlshogi && pip3 install --no-cache-dir -v . && \
+    ln -s /opt/ponkotsu-dlshogi/external/dlshogi/usi/bin/usi /usr/local/bin/dlshogi-usi
+
+# 対局検証用に YaneuraOu のソースを同梱 (ビルドはインスタンス上で行う)
+RUN git clone --depth 1 https://github.com/yaneurao/YaneuraOu /opt/YaneuraOu
+
+WORKDIR /opt/ponkotsu-dlshogi
+ENV LD_PRELOAD=/usr/local/lib/libjemalloc.so
