@@ -119,6 +119,14 @@ python3 -c "import dlshogi; print(dlshogi.__file__)"          # vendored 版が�
 dlshogi-usi < /dev/null                      # USI エンジン(モデル未指定なので即終了で OK)
 ```
 
+(任意)インスタンス上で Claude Code に作業を任せる場合:
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash   # Claude Code CLI を導入
+cd /opt/ponkotsu-dlshogi && claude               # CLAUDE.md を自動で読んで開始する
+# 最初の指示例: 「docs/HANDOVER.md を読んで、記載の未実施タスクを進めてください」
+```
+
 ---
 
 ## 4. リポジトリの最新化・改造の反映
