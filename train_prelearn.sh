@@ -14,6 +14,9 @@
 #   files_per_epoch : 1エポックに使うファイル数 (省略時 1。1ファイルあたり RAM 約30GB を目安に増やす)
 #   cache_dir       : 指定すると --cache を使用 (2周目以降のロード高速化。データと同規模のディスクを消費)
 #
+# 環境変数 EXTRA_TRAIN_ARGS で dlshogi.train への追加引数を渡せる。例:
+#   EXTRA_TRAIN_ARGS="--use_compile" bash train_prelearn.sh ...   # torch.compile による高速化 (本家 2026-05 の対応)
+#
 # チェックポイントが存在する場合は最新の続きから自動再開する。
 # 学習設定は train_prior.sh (WCSC36 当時) と同一。
 
@@ -76,5 +79,5 @@ for (( i=start; i<=epochs; i++ )); do
         --network resnet35x512_fcl512 -e 1 \
         --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2 \
         --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch \
-        ${cache_opt} --log "${log}"
+        ${cache_opt} ${EXTRA_TRAIN_ARGS:-} --log "${log}"
 done
