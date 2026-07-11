@@ -14,8 +14,12 @@
 #   files_per_epoch : 1エポックに使うファイル数 (省略時 1。1ファイルあたり RAM 約30GB を目安に増やす)
 #   cache_dir       : 指定すると --cache を使用 (2周目以降のロード高速化。データと同規模のディスクを消費)
 #
-# 環境変数 EXTRA_TRAIN_ARGS で dlshogi.train への追加引数を渡せる。例:
-#   EXTRA_TRAIN_ARGS="--use_compile" bash train_prelearn.sh ...   # torch.compile による高速化 (本家 2026-05 の対応)
+# 環境変数:
+#   NETWORK          : ネットワーク指定 (省略時 resnet35x512_fcl512 = WCSC36 現行)
+#                      例: NETWORK=resnet60x768_fcl768 bash train_prelearn.sh ...  (山岡氏ブログの60ブロック768フィルタ相当)
+#                      ※ネットワークを変えたら実験名 (name) も変えること (チェックポイント再開に互換性がないため)
+#   EXTRA_TRAIN_ARGS : dlshogi.train への追加引数。例:
+#                      EXTRA_TRAIN_ARGS="--use_compile" bash train_prelearn.sh ...  # torch.compile による高速化 (本家 2026-05 の対応)
 #
 # チェックポイントが存在する場合は最新の続きから自動再開する。
 # 学習設定は train_prior.sh (WCSC36 当時) と同一。
@@ -30,6 +34,7 @@ data_dir=$3
 test_file=$4
 files_per_epoch=${5:-1}
 cache_dir=${6:-}
+network=${NETWORK:-resnet35x512_fcl512}
 
 checkpoint_dir="${save_dir}/${name}"
 model_dir="${checkpoint_dir}/model"
@@ -76,7 +81,7 @@ for (( i=start; i<=epochs; i++ )); do
         ${resume} \
         --checkpoint "${checkpoint_dir}/checkpoint_${name}-{epoch:03}.pth" \
         --model "${model_dir}/model_${name}-{epoch:03}.pth" \
-        --network resnet35x512_fcl512 -e 1 \
+        --network "${network}" -e 1 \
         --use_average --use_evalfix --use_amp --amp_dtype bfloat16 --temperature 0 --lr 0.2 \
         --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch \
         ${cache_opt} ${EXTRA_TRAIN_ARGS:-} --log "${log}"
