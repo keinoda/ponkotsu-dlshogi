@@ -32,7 +32,7 @@ class HcpeDataset(Dataset):
     def __getitems__(self, indexes):
         batch_size = len(indexes)
         hcpevec = self.hcpe[indexes]
-        pin_memory = get_worker_info() is None
+        pin_memory = get_worker_info() is None and torch.cuda.is_available()
 
         features1 = torch.empty(
             (batch_size, FEATURES1_NUM, 9, 9),
@@ -123,7 +123,7 @@ class Hcpe3Dataset(Dataset):
         batch_size = len(indexes)
         indexes = np.array(indexes, dtype=np.uint64)
         self.ensure_loaded()
-        pin_memory = get_worker_info() is None
+        pin_memory = get_worker_info() is None and torch.cuda.is_available()
 
         features1 = torch.empty(
             (batch_size, FEATURES1_NUM, 9, 9),
@@ -227,7 +227,7 @@ class DataModule(pl.LightningDataModule):
         if self.hparams.get("num_workers") is not None:
             kwargs["num_workers"] = self.hparams.num_workers
             if self.hparams.num_workers > 0:
-                kwargs["pin_memory"] = True
+                kwargs["pin_memory"] = torch.cuda.is_available()
         if self.hparams.get("prefetch_factor") is not None:
             kwargs["prefetch_factor"] = self.hparams.prefetch_factor
         if self.hparams.get("persistent_workers") is not None:

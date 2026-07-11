@@ -28,6 +28,12 @@ ponkotsu 側の主な独自変更(マージ後も有効): TensorRT 10 対応、S
 
 本家側の主な新規変更: 学習の PyTorch Lightning 化 (`dlshogi/ptl.py`, DataModule)、hcpe3 デコードのマルチスレッド化、USI エンジンの複数最適化プロファイル対応、各種ユーティリティ (`dlshogi/utils/`) の拡充。
 
+### 取り込み後の独自変更
+
+| 日付 | ファイル | 内容 |
+| --- | --- | --- |
+| 2026-07-11 | `dlshogi/ptl.py` | `pin_memory` を CUDA が利用可能な場合のみ有効化(GPU なし環境で Lightning 経路がクラッシュする問題の修正。GPU 環境では挙動不変) |
+
 ### 次回以降の本家取り込み手順
 
 ```bash

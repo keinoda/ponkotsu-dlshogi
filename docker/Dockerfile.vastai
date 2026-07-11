@@ -51,6 +51,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
         cython \
         numpy \
         scipy \
+        pandas \
         matplotlib \
         japanize-matplotlib \
         cshogi \

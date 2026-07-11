@@ -274,7 +274,21 @@ python3 log_plot.py /workspace/compare/train_log.txt /workspace/models/train_log
 
 手元への回収は `rsync`(→ 8章)か、`jupyter lab --allow-root --ip 0.0.0.0` を立てて確認。
 
-### 6-5. (参考)本家最新の Lightning ベース学習
+### 6-5. ResNet+Transformer の Lightning スモークテスト
+
+本家最新の Lightning 経路(`dlshogi.ptl`)+ WCSC35 の ResNet+Transformer モデル(`exp___i`)が動くことを、**データ 1 ファイルだけで**確認するテストを用意しています:
+
+```bash
+cd /opt/ponkotsu-dlshogi
+bash tests/ptl_transformer_smoke.sh
+```
+
+- 再現データセットから `..._data_000.hcpe` を **1 ファイルのみ**ダウンロード(既にあればスキップ)。検証データは同じファイルの先頭から切り出すため追加ダウンロードなし
+- デフォルトで `exp___i15x224_fcl256`(13.9M params)を 200 ステップ学習し、checkpoint 生成まで確認できたら `SMOKE TEST PASSED` と表示
+- RAM 約 30 GB(1 ファイルの全局面をロード)。`NETWORK` / `MAX_STEPS` / `BATCH` / `ACCELERATOR` / `PRECISION` / `NUM_WORKERS` を環境変数で調整可能
+- GPU なしでも `ACCELERATOR=cpu PRECISION=32-true` で動作(動作確認用)
+
+### 6-6. (参考)本家最新の Lightning ベース学習
 
 今回の本家マージで `dlshogi.ptl`(PyTorch Lightning + `config.yaml`)系の改善が多数入っています。
 `lightning` はインストール済みなので、`external/dlshogi/dlshogi/config.yaml` を編集して
