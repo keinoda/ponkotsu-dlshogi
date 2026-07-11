@@ -19,6 +19,10 @@ jobs:
       packages: write
       contents: read
 
+    # secrets は if 条件で直接参照できないため env を経由する
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
     steps:
       # GitHub ホストランナーはディスクが狭いので不要物を削除 (~25GB 確保)
       - name: Free disk space
@@ -65,14 +69,14 @@ jobs:
 
       # Docker Hub の認証情報が設定されている場合のみ push (vast.ai からの pull が最も簡単)
       - name: Log in to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        if: env.DOCKERHUB_USERNAME != ''
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Push vast.ai image to Docker Hub
-        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        if: env.DOCKERHUB_USERNAME != ''
         uses: docker/build-push-action@v7
         with:
           context: .
