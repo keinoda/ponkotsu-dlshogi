@@ -8,7 +8,7 @@ ponkotsu の学習・検証・パラメータ調整・定跡生成をまとめ�
 
 | 領域 | 内容 |
 | --- | --- |
-| 学習 | `train_prior.sh`, `train_cosine_annealing.sh` による学習実行 |
+| 学習 | `train_prelearn.sh`(WCSC36 事前学習の再現データ用)、`train_prior.sh`, `train_cosine_annealing.sh` による学習実行 |
 | 可視化 | `log_plot.py`, `utils/plot_optuna_log.py` による学習・パラメータ調整ログの確認 |
 | パラメータ調整 | `utils/param_optimize.sh`, `utils/param_optimize_spsa.sh` |
 | 強さ検証 | `utils/measure_strength.sh` |

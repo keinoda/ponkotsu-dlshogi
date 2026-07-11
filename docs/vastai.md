@@ -14,8 +14,8 @@
 2. vast.ai でインスタンスを借りる          → 2章
 3. ssh で入る                              → 3章
 4. リポジトリを最新化                       → 4章
-5. 学習データを転送                         → 5章
-6. 学習を回す                              → 6章
+5. 学習データを DL (HF の WCSC36 再現データ) → 5章
+6. 学習を回す (train_prelearn.sh)           → 6章
 7. エンジンを動かす                         → 7章
 8. 成果物を回収して destroy                 → 8章
 ```
@@ -79,9 +79,10 @@ Search 画面 → 左上の Template を編集(または New Template):
 | 条件 | 推奨値 | 理由 |
 | --- | --- | --- |
 | GPU | RTX 4090 / RTX 5090(お試し・エンジン検証)、A100/H100(本格学習) | resnet35x512 の学習は VRAM 24GB あれば動作(バッチサイズ調整) |
+| CPU RAM | **64 GB 以上**(データ量に応じて) | 学習データは全局面をメモリに展開する(再現データ 1 ファイルあたり約 30 GB が目安 → 6章) |
 | CUDA(Max CUDA) | **12.4 以上** | イメージが CUDA 12.9 ベースのため(driver 525+ で動くが余裕を持たせる) |
-| Disk Space | **100 GB 以上** | 学習データ + cache + チェックポイント(1 epoch 分で数 GB〜) |
-| Internet Speed | 500 Mbps 以上 | データ転送・イメージ pull 時間の短縮 |
+| Disk Space | 動作確認: **100 GB** / 再現データ全量: **700 GB**(+cache 利用なら 1.2 TB) | 再現データ 544 GB + チェックポイント・モデル(1 epoch 数 GB)+ 余裕 |
+| Internet Speed | 500 Mbps 以上(全量 DL するなら 1 Gbps 以上推奨) | 544 GB のダウンロードは 1 Gbps で 1.5〜2 時間 |
 | Reliability | 99% 以上 | 長時間学習の中断リスク低減 |
 
 料金体系: On-demand(確実)/ Interruptible(安いが横取りされうる)。長時間学習は On-demand 推奨。
@@ -152,48 +153,81 @@ git add -A && git commit -m "..." && git push origin <作業ブランチ>
 
 ---
 
-## 5. 学習データの転送
+## 5. 学習データの用意
 
 データ置き場は `/workspace` を推奨(慣例的に vast.ai のデータ領域):
 
 ```bash
-mkdir -p /workspace/data /workspace/test /workspace/models /workspace/cache
+mkdir -p /workspace/data/prelearn /workspace/test /workspace/models /workspace/cache
 ```
 
-### 5-1. 手元 → インスタンス(rsync 推奨)
+### 5-1. 標準ルート: WCSC36 事前学習の再現データ (Hugging Face)
 
-手元マシンから:
+ponkotsu WCSC36 が事前学習に使用したとされるデータセットの**第三者による再現版**が Hugging Face で公開されています。`train_prior.sh` が前提としていた 4 系列(AobaZero / hao / tanuki 2024-07-30 / suisho5 入玉)をマージ・重複排除・シャッフルしたものです。
+
+- データセット: [penguinkumimanu/generic_ponkostu_wcsc36_Pre-learning](https://huggingface.co/datasets/penguinkumimanu/generic_ponkostu_wcsc36_Pre-learning)
+- 構成: `generic_ponkostu_wcsc36_Prelearning_data_NNN.hcpe` × 58 ファイル(1 ファイル約 9.5 GB、**合計約 544 GB**)
+- 形式: 素の hcpe(dlshogi のローダーがそのまま読める。圧縮なし)
+
+> **注意**: 本家アピール文書の「約 27 億局面」の選別基準は非公開のため、この再現データは**選別なしの全量**です(局面数はより多い)。また第三者作成でライセンス表記がないため、利用は元データセット(AobaZero, nodchip 各データセット)の配布条件に従ってください。
+
+インスタンス上で直接ダウンロードします(公開データセットなのでトークン不要):
 
 ```bash
-rsync -avP -e "ssh -p <PORT>" ./hcpe_data/ root@<sshN.vast.ai>:/workspace/data/
+pip3 install -U "huggingface_hub[cli]" hf_transfer
+export HF_HUB_ENABLE_HF_TRANSFER=1   # 高速ダウンローダを有効化
+
+# まず動作確認用に 2 ファイル (約 19 GB) だけ取得
+hf download penguinkumimanu/generic_ponkostu_wcsc36_Pre-learning \
+    --repo-type dataset \
+    --include "generic_ponkostu_wcsc36_Prelearning_data_00[01].hcpe" \
+    --local-dir /workspace/data/prelearn
+
+# 問題なければ全量 (約 544 GB。ディスクサイズに注意 → 2-2 章)
+hf download penguinkumimanu/generic_ponkostu_wcsc36_Pre-learning \
+    --repo-type dataset \
+    --include "*.hcpe" \
+    --local-dir /workspace/data/prelearn
 ```
 
-hcpe は圧縮が効くので、事前に `pbzip2` で固めて送り、インスタンス側で展開すると速いことが多いです
-(イメージに `pbzip2` / `pv` 導入済み)。
+回線 1 Gbps なら全量で 1.5〜2 時間程度です。`--include` の番号パターンを変えれば必要な分だけ段階的に増やせます(ダウンロードは再開可能)。
 
-### 5-2. クラウドストレージ経由
+### 5-2. テストデータの作成(必須・初回のみ)
 
-大容量・繰り返し使う場合は vast.ai の **Cloud Sync**(Backblaze B2 / S3 / Google Drive)が便利です。
-Instances 画面のクラウドアイコンから設定できます。次回以降のインスタンスへの展開が速くなります。
+再現データにはテストセットが含まれていません。チームが使っていた `floodgate_test_2017-2018_r3500_eval5000.hcpe` 相当を floodgate の公開棋譜から作ります:
 
-### 5-3. floodgate 等の公開データ
+```bash
+apt-get update && apt-get install -y p7zip-full   # floodgate 棋譜は 7z 配布
+mkdir -p /workspace/test/csa && cd /workspace/test
 
-インスタンスに直接ダウンロードするのが最速です(`wget`/`curl` 導入済み)。
+# floodgate 棋譜倉庫 http://wdoor.c.u-tokyo.ac.jp/shogi/ から
+# 2017・2018 年のアーカイブを取得して /workspace/test/csa に展開したうえで:
+python3 -m dlshogi.utils.csa_to_hcpe csa/ floodgate_test_2017-2018_r3500_eval5000.hcpe \
+    --filter_rating 3500 --eval 5000 --uniq
+```
+
+(`--filter_rating 3500` = 両対局者レート 3500 以上、`--eval 5000` = 評価値 ±5000 以内の局面のみ。チームのファイル名と同条件)
+
+### 5-3. その他の転送手段
+
+- **手元 → インスタンス**: `rsync -avP -e "ssh -p <PORT>" ./hcpe_data/ root@<sshN.vast.ai>:/workspace/data/`
+- **クラウドストレージ経由**: vast.ai の Cloud Sync(B2 / S3 / Google Drive)。繰り返し使う場合に便利
+- **他の公開データ**: floodgate(CSA → `csa_to_hcpe3`)、AobaZero(`aoba_to_hcpe3`)、やねうら王系 PSV(`psv_to_hcpe`)など、変換ツールはイメージ導入済み
 
 ---
 
 ## 6. 学習の実行
 
-### 6-1. 単発の学習コマンド(推奨: まずこれで動作確認)
+### 6-1. 動作確認: 単発の学習コマンド
 
-`train_prior.sh` が内部で呼んでいるものと同じ形式です:
+まず 1 ファイルで 1 エポック回して、環境とデータを確認します(`train_prior.sh` と同じ学習設定):
 
 ```bash
 cd /opt/ponkotsu-dlshogi
 
 python3 -m dlshogi.train \
-    /workspace/data/<学習データ.hcpe...(複数可)> \
-    /workspace/test/<テストデータ.hcpe> \
+    /workspace/data/prelearn/generic_ponkostu_wcsc36_Prelearning_data_000.hcpe \
+    /workspace/test/floodgate_test_2017-2018_r3500_eval5000.hcpe \
     --network resnet35x512_fcl512 \
     -e 1 \
     --use_average --use_evalfix --use_amp --amp_dtype bfloat16 \
@@ -201,30 +235,35 @@ python3 -m dlshogi.train \
     --lr_scheduler ReduceLROnPlateau'('eps=1e-20,factor=0.5')' --scheduler_step_mode epoch \
     --checkpoint '/workspace/models/checkpoint-{epoch:03}.pth' \
     --model '/workspace/models/model-{epoch:03}.pth' \
-    --cache /workspace/cache/train_cache \
     --log /workspace/models/train_log.txt
 ```
 
-- 初回はデータの cache 構築に時間がかかります(2回目以降は `--cache` により高速化)
+- データロードは全局面をメモリに展開します。**1 ファイル(9.5 GB)あたり RAM 約 30 GB が目安**(概算。`free -h` で実測して調整)
 - VRAM が足りない場合は `--batchsize`(デフォルト 1024)を下げる
 - GPU 使用状況は別ペインで `watch -n 2 nvidia-smi`
 
-### 6-2. 一括学習スクリプト
+### 6-2. 再現データの一括学習: `train_prelearn.sh`(推奨)
 
-`train_prior.sh` / `train_cosine_annealing.sh` は「エポックごとにログ画像を生成して Misskey に通知する」
-運用込みのスクリプトです。引数 9 個(`save_dir name data_dir test_dir cache_dir compare_log_dir misskey_base_url token_file visible_user_id`)を取ります:
+再現データセットのファイル名を自動で列挙し、N ファイルずつ 1 エポックとして順に学習するスクリプトです。チェックポイントからの**自動再開**付きなので、インスタンスが落ちても再実行するだけで続きから走ります:
 
 ```bash
-bash train_prior.sh /workspace/models run1 /workspace/data /workspace/test \
-    /workspace/cache /workspace/compare https://<misskey> /root/.misskey_token <user_id>
+cd /opt/ponkotsu-dlshogi
+
+# save_dir  name       data_dir                 test_hcpe                                             [files/epoch] [cache_dir]
+bash train_prelearn.sh /workspace/models prelearn01 /workspace/data/prelearn \
+    /workspace/test/floodgate_test_2017-2018_r3500_eval5000.hcpe 1 /workspace/cache
 ```
 
-> **注意**: これらのスクリプトはデータセットのファイル名パターン(`aoba_p3200_2025-XXX` 等)や
-> Misskey 通知がハードコードされています。Misskey に到達できない環境ではループが途中終了する
-> 可能性があるため、**Misskey を使わない場合は 6-1 の直接実行を推奨**します。
-> 自分のデータ構成に合わせて `src=` の行を書き換えてから使ってください。
+- `files_per_epoch`(第5引数)はメモリ量に合わせて調整: RAM 64GB → 1、128GB → 2〜3、256GB → 4〜
+- `cache_dir`(第6引数)を指定すると 2 周目以降のロードが速くなりますが、**データと同規模のディスクを追加消費**します。1 周だけなら省略推奨
+- 全 58 ファイル × 1 周 = 58 エポック。学習時間は GPU とバッチサイズ次第(RTX 4090 で数十分〜1時間/エポックが目安)
+- 学習設定(ネットワーク・LR・AMP 等)は WCSC36 当時の `train_prior.sh` と同一
 
-### 6-3. 学習ログの可視化
+### 6-3. (参考)従来の一括学習スクリプト
+
+`train_prior.sh` / `train_cosine_annealing.sh` は WCSC36 当時のデータ構成(`aoba_p3200_2025-XXX` 等の 4 系列)と Misskey 通知がハードコードされた運用スクリプトです。再現データセットには **6-2 の `train_prelearn.sh` を使ってください**。Misskey に到達できない環境では `train_prior.sh` のループが途中終了する可能性があります。
+
+### 6-4. 学習ログの可視化
 
 ```bash
 python3 log_plot.py /workspace/compare/train_log.txt /workspace/models/train_log.txt
@@ -233,7 +272,7 @@ python3 log_plot.py /workspace/compare/train_log.txt /workspace/models/train_log
 
 手元への回収は `rsync`(→ 8章)か、`jupyter lab --allow-root --ip 0.0.0.0` を立てて確認。
 
-### 6-4. (参考)本家最新の Lightning ベース学習
+### 6-5. (参考)本家最新の Lightning ベース学習
 
 今回の本家マージで `dlshogi.ptl`(PyTorch Lightning + `config.yaml`)系の改善が多数入っています。
 `lightning` はインストール済みなので、`external/dlshogi/dlshogi/config.yaml` を編集して

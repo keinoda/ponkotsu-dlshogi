@@ -13,7 +13,8 @@ dlshogi 本体のソースを `external/dlshogi` に取り込み済みで、こ�
 | パス | 内容 |
 | --- | --- |
 | `external/dlshogi/` | dlshogi 本体 (jj1guj/wcsc35 + 本家 master 2026-06 をマージ済み)。学習コード (`dlshogi/`)・USI エンジン (`usi/`)・自己対局 (`selfplay/`) |
-| `train_prior.sh` / `train_cosine_annealing.sh` | 学習実行スクリプト (`python -m dlshogi.train` を呼ぶ。Misskey 通知込み) |
+| `train_prelearn.sh` | WCSC36 事前学習の再現データ ([HF: penguinkumimanu/generic_ponkostu_wcsc36_Pre-learning](https://huggingface.co/datasets/penguinkumimanu/generic_ponkostu_wcsc36_Pre-learning), hcpe 58 ファイル・約544GB) 用の学習ループ。自動再開対応 |
+| `train_prior.sh` / `train_cosine_annealing.sh` | WCSC36 当時の学習スクリプト (`python -m dlshogi.train` を呼ぶ。データ名・Misskey 通知がハードコード) |
 | `docker/Dockerfile.vastai` | vast.ai 用オールインワンイメージ (`ghcr.io/keinoda/ponkotsu:vastai`) |
 | `docker/Dockerfile` / `Dockerfile.develop` | WCSC36 当時の大会用 / 開発用イメージ |
 | `docs/vastai.md` | vast.ai での実行手順書 |

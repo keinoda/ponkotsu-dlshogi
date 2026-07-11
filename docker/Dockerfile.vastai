@@ -58,7 +58,9 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
         optuna \
         lightning \
         tensorboard \
-        jupyterlab
+        jupyterlab \
+        'huggingface_hub[cli]' \
+        hf_transfer
 
 # リポジトリ一式 (.git 込み: インスタンス内で git pull / push できる)
 COPY . /opt/ponkotsu-dlshogi
