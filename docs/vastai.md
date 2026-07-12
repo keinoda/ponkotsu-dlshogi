@@ -349,6 +349,20 @@ python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_60x768.yaml
 - 実効バッチ 4096(512×累積 8。80GB GPU 前提。OOM 時は 256×16 に)
 - 計算量は 40x512 の約 2.8 倍。**必ず 1 ファイルで実測してからスケールを決める**こと
 
+**RTX 5090 (VRAM 32GB) での実測値 (2026-07-12、bf16-mixed)**:
+
+| 構成 | スループット | 1 ファイル (2.5 億局面) |
+| --- | --- | --- |
+| 1 GPU、batch 512×累積 8 | 546 局面/秒 | 5.3 日 |
+| 1 GPU、batch 512×累積 8、`--model.use_compile true` | **645 局面/秒** (+18%) | 4.5 日 |
+| 2 GPU DDP、batch 256×累積 8 (実効 4096 維持)、compile | **1,149 局面/秒** (1.78 倍) | 2.5 日 |
+
+- torch.compile は常時推奨 (初回コンパイル数分のみのコスト。`--model.use_compile true`)
+- 単 GPU は batch 512 で VRAM 31.5GB とギリギリ収まる。**DDP は勾配バケット分が乗るため batch 512 は OOM** → 256 に下げる (累積 8 のままで実効 4096 を維持)
+- `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` を設定しておく
+- DDP は各 rank が train_files 全量を RAM 展開する (1 ファイルあたり約 30GB × rank 数)
+- 参考: resnet35x512_fcl512 (dlshogi.train、batch 1024) は同 GPU で 1,770 局面/秒 = 1 ファイル 39 時間
+
 ### 6-7. (参考)本家最新の Lightning ベース学習
 
 今回の本家マージで `dlshogi.ptl`(PyTorch Lightning + `config.yaml`)系の改善が多数入っています。

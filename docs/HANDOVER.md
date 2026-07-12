@@ -1,4 +1,4 @@
-# 作業引き継ぎメモ (2026-07-11 時点)
+# 作業引き継ぎメモ (2026-07-12 時点)
 
 新しいセッション(または vast.ai インスタンス上の Claude)が作業を再開するためのスナップショット。
 まず `CLAUDE.md` → `docs/vastai.md` → `external/README.md` の順に読むこと。
@@ -19,25 +19,31 @@
 | 学習スクリプト | `train_prelearn.sh` (自動再開、`NETWORK` / `EXTRA_TRAIN_ARGS` 環境変数対応)。テストデータは floodgate から作成 (手順書 5-2) |
 | スモークテスト | `tests/ptl_transformer_smoke.sh` (ResNet+Transformer × Lightning、1 ファイルのみ DL)。実データスライスで検証済み |
 
+## 2026-07-12 実測セッションの結果 (vast.ai 2×RTX 5090, RAM 440GB)
+
+1. ✅ 環境確認 OK (torch 2.11.0+cu128、CUDA 認識、`/workspace` 2TB)
+2. ✅ スモークテスト PASSED (`jsonargparse[signatures]` 不足を発見 → Dockerfile.vastai に追加済み)
+3. ✅ `/workspace/test/floodgate.hcpe` 配置・サイズ検証 OK
+4. ✅ 入玉特徴量ビルド済み (`FEATURES2_NUM=119`)。60b768 の実測完了 (手順書 6-6 に詳細表):
+   - 1×5090 + compile: **645 局面/秒** (1 ファイル 4.5 日)
+   - 2×5090 DDP (batch 256×累積8) + compile: **1,149 局面/秒** (1 ファイル 2.5 日、11 ファイル 27.7 日)
+   - 参考 resnet35x512_fcl512: 1,770 局面/秒 (1 ファイル 39 時間)。steps=5000 で test acc policy 37.2% / value 58.4%
+5. ⏳ **規模の決定待ち (ユーザー判断: 一旦テストのみ)**。1 ファイル学習の DDP run
+   (`/workspace/models/yamaoka60x768`、cosine t_initial=60000 = 1 ファイル正規構成) を走行中。
+   完走で「1 ファイル 60b768 モデル + floodgate 精度カーブ」が得られる → スケール判断材料
+
 ## 未実施 (次のタスク)
 
-vast.ai インスタンス上で:
-
-1. `nvidia-smi` / `python3 -c "import torch; print(torch.cuda.is_available())"` で環境確認 (手順書 3 章)
-2. `bash tests/ptl_transformer_smoke.sh` で Lightning 経路の動作確認 (GPU での初実行)
-3. テストデータ取得: 公式評価データセット [takaoyamaoka/floodgate.hcpe](https://huggingface.co/datasets/takaoyamaoka/floodgate.hcpe) を `/workspace/test/floodgate.hcpe` へ (手順書 5-2、サイズ検証付き)
-4. **本命: 60b768 モデル (exp___i60x768_fcl256, 739.9M params) の学習** —
-   `NYUGYOKU_FEATURES=1 pip3 install ./external/dlshogi` してから
-   `python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_60x768.yaml` (手順書 6-6)。
-   ユーザーの主目的は policy/value の精度 (対局時の NPS 低下は許容)。
-   **まず 1 ファイルで実測**し、スループット (局面/秒) を報告してからファイル数を増やす
-5. **蒸留 A/B 比較** — 教師 = ponkotsu-wcsc36 公開評価関数 (model.onnx 667,162,409 bytes。
+1. **蒸留 A/B 比較** — 教師 = ponkotsu-wcsc36 公開評価関数 (model.onnx 667,162,409 bytes。
    再配布禁止のためリポジトリには含めない。**ユーザーから Drive リンクを会話で受け取り** /workspace/teacher/ に展開)。
    `hcpe_re_eval` で data_000 を「α=1 (全置換)」「α=0.5 (ブレンド)」の 2 種類作り (手順書 5-3)、
    60b768 を (a) 素の再現データ (b) α=1 (c) α=0.5 の 3 構成で同一ステップ数だけ学習して
    floodgate.hcpe の val loss / accuracy で比較する
-6. 実測値と A/B 結果から学習計画 (ファイル数・構成・期間・費用) を確定する
-   (計算量は resnet35x512 比で約 4 倍。全量 1 周は非現実的なので 11 ファイル ≈ 27 億局面規模から)
+2. 走行中の 1 ファイル DDP run (= A/B の (a) 素データ構成に相当) の扱いを決める:
+   完走 (~2.5 日) させて精度カーブを取るか、A/B 比較を短ステップで揃えるため途中打ち切りにするか
+3. 実測値と A/B 結果から学習計画 (ファイル数・構成・期間・費用) を確定する
+   → 11 ファイルなら DDP で分割継ぎ (RAM 制約: rank あたり全量ロード × 2)
+4. 必要なら ONNX 変換 → USI エンジンでの動作確認 (手順書 7 章)
 
 ## 既知の注意点
 
