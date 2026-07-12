@@ -200,21 +200,24 @@ hf download penguinkumimanu/generic_ponkostu_wcsc36_Pre-learning \
 
 回線 1 Gbps なら全量で 1.5〜2 時間程度です。`--include` の番号パターンを変えれば必要な分だけ段階的に増やせます(ダウンロードは再開可能)。
 
-### 5-2. テストデータの作成(必須・初回のみ)
+### 5-2. テストデータの取得(必須・初回のみ)
 
-再現データにはテストセットが含まれていません。チームが使っていた `floodgate_test_2017-2018_r3500_eval5000.hcpe` 相当を floodgate の公開棋譜から作ります:
+再現データにはテストセットが含まれていません。**山岡氏が公開している公式の評価用データセット**([takaoyamaoka/floodgate.hcpe](https://huggingface.co/datasets/takaoyamaoka/floodgate.hcpe)、[解説記事](https://tadaoyamaoka.hatenablog.com/entry/2025/12/20/152940))を使うのが標準です。floodgate 2017〜2018/6・両者レート 3500 以上・評価値 ±3000 打ち切り・重複除外の 856,923 局面(hcpe、32MB):
 
 ```bash
-apt-get update && apt-get install -y p7zip-full   # floodgate 棋譜は 7z 配布
-mkdir -p /workspace/test/csa && cd /workspace/test
-
-# floodgate 棋譜倉庫 http://wdoor.c.u-tokyo.ac.jp/shogi/ から
-# 2017・2018 年のアーカイブを取得して /workspace/test/csa に展開したうえで:
-python3 -m dlshogi.utils.csa_to_hcpe csa/ floodgate_test_2017-2018_r3500_eval5000.hcpe \
-    --filter_rating 3500 --eval 5000 --uniq
+mkdir -p /workspace/test
+hf download takaoyamaoka/floodgate.hcpe --repo-type dataset \
+    --include "floodgate.hcpe" --local-dir /workspace/test
+# サイズ確認 (856,923 局面 × 38 バイト)
+[ "$(stat -c %s /workspace/test/floodgate.hcpe)" = "32563074" ] && echo OK
 ```
 
-(`--filter_rating 3500` = 両対局者レート 3500 以上、`--eval 5000` = 評価値 ±5000 以内の局面のみ。チームのファイル名と同条件)
+山岡氏のブログの精度比較と同一条件で評価できる標準ベンチマークです。
+
+> (代替)WCSC36 当時のチームのテストセット `floodgate_test_2017-2018_r3500_eval5000` 相当を自作する場合は、
+> [floodgate 棋譜倉庫](http://wdoor.c.u-tokyo.ac.jp/shogi/) の 2017・2018 年アーカイブ(7z)を展開し
+> `python3 -m dlshogi.utils.csa_to_hcpe csa/ out.hcpe --filter_rating 3500 --eval 5000 --uniq` で変換する。
+> 評価値打ち切り等の条件が公式データセットと異なるため、**当時のログと loss/accuracy を比較したい場合のみ**こちらを使う。
 
 ### 5-3. その他の転送手段
 
@@ -235,7 +238,7 @@ cd /opt/ponkotsu-dlshogi
 
 python3 -m dlshogi.train \
     /workspace/data/prelearn/generic_ponkostu_wcsc36_Prelearning_data_000.hcpe \
-    /workspace/test/floodgate_test_2017-2018_r3500_eval5000.hcpe \
+    /workspace/test/floodgate.hcpe \
     --network resnet35x512_fcl512 \
     -e 1 \
     --use_average --use_evalfix --use_amp --amp_dtype bfloat16 \
@@ -259,7 +262,7 @@ cd /opt/ponkotsu-dlshogi
 
 # save_dir  name       data_dir                 test_hcpe                                             [files/epoch] [cache_dir]
 bash train_prelearn.sh /workspace/models prelearn01 /workspace/data/prelearn \
-    /workspace/test/floodgate_test_2017-2018_r3500_eval5000.hcpe 1 /workspace/cache
+    /workspace/test/floodgate.hcpe 1 /workspace/cache
 ```
 
 - `files_per_epoch`(第5引数)はメモリ量に合わせて調整: RAM 64GB → 1、128GB → 2〜3、256GB → 4〜
