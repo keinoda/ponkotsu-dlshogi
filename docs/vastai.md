@@ -221,21 +221,28 @@ hf download takaoyamaoka/floodgate.hcpe --repo-type dataset \
 
 ### 5-3. (応用)教師モデルによる評価値の付け替え(価値蒸留)
 
-既存モデル(例: ponkotsu の学習済みモデル)を教師として、hcpe の評価値を付け替えられます(本家が「評価値の付け替え 約10億局面」でやっている手法と同じ。方策・指し手はそのまま、value だけ教師の出力に置換):
+既存モデルを教師として、hcpe の評価値を付け替えられます(本家が「評価値の付け替え 約10億局面」でやっている手法と同じ。方策・指し手はそのまま、value だけ教師の出力に置換)。
+
+教師には **ponkotsu-wcsc36 の公開評価関数**(`ponkotsu-wcsc36.zip` → `model.onnx`、resnet35x512_fcl512 / 166.7M params fp32 / 667MB)が使えます。
+
+> **ライセンス注意 (ponkotsu-wcsc36 評価関数)**: 著作権は JJ1GUJ 氏に帰属。**再配布禁止**のため、
+> このリポジトリ・Docker イメージ・HF 等に含めないこと(各自が配布元から取得して `/workspace/teacher/` に置く)。
+> 開発に使用した場合は**使用したことを明記する義務**がある(蒸留して作ったモデルを公開する際はクレジットを書く)。
+> floodgate・大会への無改変での放流・出場は禁止。
 
 ```bash
-# 教師モデルを ONNX 化 (済みならスキップ)
-python3 -m dlshogi.convert_model_to_onnx teacher.pth teacher.onnx --network resnet35x512_fcl512
+# 教師の配置 (zip を /workspace/teacher/ に展開した前提)
+ls /workspace/teacher/ponkotsu-wcsc36/model.onnx   # 667,162,409 bytes であること
 
 # 1 ファイルずつ付け替え (推論のみなので学習よりずっと速い)
-python3 -m dlshogi.utils.hcpe_re_eval teacher.onnx \
+python3 -m dlshogi.utils.hcpe_re_eval /workspace/teacher/ponkotsu-wcsc36/model.onnx \
     /workspace/data/prelearn/generic_ponkostu_wcsc36_Prelearning_data_000.hcpe \
     /workspace/data/releval/data_000.hcpe --tensorrt
 
 # --alpha 0.5 とすると元の評価値と教師出力のブレンドになる (デフォルト 1 = 全置換)
 ```
 
-付け替え後のファイルで通常どおり学習すれば「価値だけ蒸留」になります。方策分布まで含む完全な教師データが欲しい場合は自己対局生成(`external/dlshogi/selfplay/`、要ビルド)を使いますが、GPU コストは学習と同等以上かかります。
+付け替え後のファイルで通常どおり学習すれば「価値だけ蒸留」になります。学習時は `--use_evalfix` がファイルごとに評価値→勝率の変換を再フィットするため、付け替え済みデータもそのまま扱えます。方策分布まで含む完全な教師データが欲しい場合は自己対局生成(`external/dlshogi/selfplay/`、要ビルド)を使いますが、GPU コストは学習と同等以上かかります。
 
 ### 5-4. その他の転送手段
 
