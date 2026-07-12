@@ -314,6 +314,16 @@ python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_40x512.yaml
 - 検証は本家公開の `floodgate.hcpe` なので、**本家ブログの精度数値と直接比較できる**
 - 本家の学習データ(自己対局+NNUE 系対局、数十億局面)は非公開のため、データは WCSC36 再現データで代替する。`train_files` と `t_initial` をスケールに合わせて編集すること
 
+**大型版(60 ブロック 768 フィルタ = 本家 pre66 相当、739.9M params)**は `configs/ptl_yamaoka_60x768.yaml`:
+
+```bash
+python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_60x768.yaml
+```
+
+- 対局時の NPS は下がるため、**policy/value の精度を重視する用途(解析・蒸留の教師など)向け**
+- 実効バッチ 4096(512×累積 8。80GB GPU 前提。OOM 時は 256×16 に)
+- 計算量は 40x512 の約 2.8 倍。**必ず 1 ファイルで実測してからスケールを決める**こと
+
 ### 6-7. (参考)本家最新の Lightning ベース学習
 
 今回の本家マージで `dlshogi.ptl`(PyTorch Lightning + `config.yaml`)系の改善が多数入っています。

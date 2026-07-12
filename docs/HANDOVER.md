@@ -25,10 +25,14 @@ vast.ai インスタンス上で:
 
 1. `nvidia-smi` / `python3 -c "import torch; print(torch.cuda.is_available())"` で環境確認 (手順書 3 章)
 2. `bash tests/ptl_transformer_smoke.sh` で Lightning 経路の動作確認 (GPU での初実行)
-3. 手順書 6-1 の単発コマンドで `resnet35x512_fcl512` の 1 ファイル学習を実測
-   (データ DL: 手順書 5-1、テストデータ作成: 5-2)
-4. 実測スループット (局面/秒) から学習計画を立てる
-   (目安表は手順書 6-2。全量 1 周は GPU 月単位なので、まず 11 ファイル ≈ 27 億局面規模を検討)
+3. テストデータ取得: 公式評価データセット [takaoyamaoka/floodgate.hcpe](https://huggingface.co/datasets/takaoyamaoka/floodgate.hcpe) を `/workspace/test/floodgate.hcpe` へ (手順書 5-2、サイズ検証付き)
+4. **本命: 60b768 モデル (exp___i60x768_fcl256, 739.9M params) の学習** —
+   `NYUGYOKU_FEATURES=1 pip3 install ./external/dlshogi` してから
+   `python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_60x768.yaml` (手順書 6-6)。
+   ユーザーの主目的は policy/value の精度 (対局時の NPS 低下は許容)。
+   **まず 1 ファイルで実測**し、スループット (局面/秒) を報告してからファイル数を増やす
+5. 実測値から学習計画 (ファイル数・期間・費用) を確定する
+   (計算量は resnet35x512 比で約 4 倍。全量 1 周は非現実的なので 11 ファイル ≈ 27 億局面規模から)
 
 ## 既知の注意点
 

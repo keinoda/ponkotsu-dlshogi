@@ -1,0 +1,71 @@
+# 山岡氏の大型実験構成 (pre66 相当: 60ブロック768フィルタ) の再現用 Lightning 設定
+#   モデル: exp___i60x768_fcl256 (ResNet+Transformer) = 739.9M params
+#   位置づけ: NPS は低いが policy/value の精度重視 (本家では蒸留の教師クラス)。
+#             本家の 60b768 は「50b640 からの知識蒸留 約10億 + 対局データ 約28億」で学習しているが、
+#             教師モデルが非公開のため、ここでは WCSC36 再現データの直接教師あり学習で代替する。
+#
+# 実行:
+#   python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_60x768.yaml
+# 中断から再開:
+#   python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_60x768.yaml --ckpt_path <last.ckpt>
+#
+# 忠実な再現には入玉特徴量ビルドが必要:
+#   NYUGYOKU_FEATURES=1 pip3 install ./external/dlshogi
+#
+# VRAM: 80GB (H100/A100) 前提で batch 512 x 累積 8 = 実効 4096。
+#       OOM する場合は batch_size を 256 に下げ accumulate_grad_batches を 16 に。
+#       余裕があれば 1024 x 4 の方が速い。
+# RAM:  データ 1 ファイル ≈ 2.5 億局面 ≈ 30GB。乗る分だけ train_files に足し、
+#       残りは --ckpt_path で継いで分割学習する。
+seed_everything: 0
+trainer:
+  max_epochs: 1
+  precision: 16-mixed          # H100 なら bf16-mixed 推奨 (大型モデルで数値的に安定)
+  accelerator: gpu
+  devices: 1                   # 複数 GPU があれば増やす (DDP)
+  accumulate_grad_batches: 8   # 512 x 8 = 実効バッチ 4096
+  gradient_clip_val: 10.0
+  val_check_interval: 5000
+  limit_val_batches: 200
+  default_root_dir: /workspace/models/yamaoka60x768
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        save_top_k: -1
+        save_on_train_epoch_end: true
+        monitor: val/loss
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+model:
+  network: exp___i60x768_fcl256
+  val_lambda: 0.333
+  model_filename: model-yamaoka60x768-{epoch:03}
+data:
+  train_files:
+    # RAM に応じて追加する (27 億局面規模 = 000〜010 の 11 ファイル)
+    - /workspace/data/prelearn/generic_ponkostu_wcsc36_Prelearning_data_000.hcpe
+  val_files:
+    - /workspace/test/floodgate.hcpe   # 本家公開の評価用データセット (手順書 5-2)
+  batch_size: 512
+  val_batch_size: 512
+  use_average: true
+  use_evalfix: true
+  temperature: 1.0
+optimizer:
+  class_path: torch.optim.AdamW
+  init_args:
+    lr: 1e-4
+    betas:
+      - 0.9
+      - 0.999
+    eps: 1e-08
+    weight_decay: 1e-2
+lr_scheduler:
+  class_path: dlshogi.lr_scheduler.CosineLRScheduler
+  init_args:
+    # t_initial は総 optimizer ステップ数に合わせる: 総局面数 / 4096
+    # 例: 1 ファイル (2.5億) → 60000 / 11 ファイル (27億) → 660000
+    t_initial: 60000
+    lr_min: 1e-8
+    warmup_t: 1000
+    warmup_lr_init: 1e-7
+    warmup_prefix: true
