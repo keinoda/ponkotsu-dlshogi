@@ -299,7 +299,22 @@ bash tests/ptl_transformer_smoke.sh
 - RAM 約 30 GB(1 ファイルの全局面をロード)。`NETWORK` / `MAX_STEPS` / `BATCH` / `ACCELERATOR` / `PRECISION` / `NUM_WORKERS` を環境変数で調整可能
 - GPU なしでも `ACCELERATOR=cpu PRECISION=32-true` で動作(動作確認用)
 
-### 6-6. (参考)本家最新の Lightning ベース学習
+### 6-6. 山岡氏(本家)構成の再現学習
+
+本家 dlshogi の現行本命モデル(WCSC35〜: **40 ブロック 512 フィルタ ResNet+Transformer**、取り込み済みの `exp___i` = 213.9M params)を再現する設定を `configs/ptl_yamaoka_40x512.yaml` に用意しています:
+
+```bash
+# 忠実な再現には入玉特徴量ビルドに切り替える(本家現行モデルは入玉特徴量あり)
+NYUGYOKU_FEATURES=1 pip3 install ./external/dlshogi
+
+python3 -m dlshogi.ptl fit --config configs/ptl_yamaoka_40x512.yaml
+```
+
+- 実効バッチ 4096(本家の 40b512 学習と同等。1024×accumulate 4)、AdamW + cosine warmup(本家レシピ)
+- 検証は本家公開の `floodgate.hcpe` なので、**本家ブログの精度数値と直接比較できる**
+- 本家の学習データ(自己対局+NNUE 系対局、数十億局面)は非公開のため、データは WCSC36 再現データで代替する。`train_files` と `t_initial` をスケールに合わせて編集すること
+
+### 6-7. (参考)本家最新の Lightning ベース学習
 
 今回の本家マージで `dlshogi.ptl`(PyTorch Lightning + `config.yaml`)系の改善が多数入っています。
 `lightning` はインストール済みなので、`external/dlshogi/dlshogi/config.yaml` を編集して
