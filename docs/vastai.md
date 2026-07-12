@@ -219,7 +219,25 @@ hf download takaoyamaoka/floodgate.hcpe --repo-type dataset \
 > `python3 -m dlshogi.utils.csa_to_hcpe csa/ out.hcpe --filter_rating 3500 --eval 5000 --uniq` で変換する。
 > 評価値打ち切り等の条件が公式データセットと異なるため、**当時のログと loss/accuracy を比較したい場合のみ**こちらを使う。
 
-### 5-3. その他の転送手段
+### 5-3. (応用)教師モデルによる評価値の付け替え(価値蒸留)
+
+既存モデル(例: ponkotsu の学習済みモデル)を教師として、hcpe の評価値を付け替えられます(本家が「評価値の付け替え 約10億局面」でやっている手法と同じ。方策・指し手はそのまま、value だけ教師の出力に置換):
+
+```bash
+# 教師モデルを ONNX 化 (済みならスキップ)
+python3 -m dlshogi.convert_model_to_onnx teacher.pth teacher.onnx --network resnet35x512_fcl512
+
+# 1 ファイルずつ付け替え (推論のみなので学習よりずっと速い)
+python3 -m dlshogi.utils.hcpe_re_eval teacher.onnx \
+    /workspace/data/prelearn/generic_ponkostu_wcsc36_Prelearning_data_000.hcpe \
+    /workspace/data/releval/data_000.hcpe --tensorrt
+
+# --alpha 0.5 とすると元の評価値と教師出力のブレンドになる (デフォルト 1 = 全置換)
+```
+
+付け替え後のファイルで通常どおり学習すれば「価値だけ蒸留」になります。方策分布まで含む完全な教師データが欲しい場合は自己対局生成(`external/dlshogi/selfplay/`、要ビルド)を使いますが、GPU コストは学習と同等以上かかります。
+
+### 5-4. その他の転送手段
 
 - **手元 → インスタンス**: `rsync -avP -e "ssh -p <PORT>" ./hcpe_data/ root@<sshN.vast.ai>:/workspace/data/`
 - **クラウドストレージ経由**: vast.ai の Cloud Sync(B2 / S3 / Google Drive)。繰り返し使う場合に便利
