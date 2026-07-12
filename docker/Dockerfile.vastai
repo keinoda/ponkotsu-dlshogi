@@ -59,6 +59,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
         onnxruntime-gpu \
         optuna \
         lightning \
+        'jsonargparse[signatures]>=4.27.7' \
         tensorboard \
         jupyterlab \
         'huggingface_hub[cli]' \
